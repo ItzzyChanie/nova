@@ -12,9 +12,11 @@
   "app": {
     "windows": [
       {
-        "title": "nova",
-        "width": 800,
-        "height": 600
+        "title": "NOVA",
+        "width": 900,
+        "height": 650,
+        "minWidth": 640,
+        "minHeight": 480
       }
     ],
     "security": {

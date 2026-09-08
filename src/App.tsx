@@ -1,50 +1,44 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import { invoke } from "@tauri-apps/api/core";
-import "./App.css";
+import { useState, type ReactNode } from "react";
+import { AppShell } from "./components/layout/AppShell";
+import { OverviewPage } from "./pages/OverviewPage";
+import { CommandHistoryPage } from "./pages/CommandHistoryPage";
+import { SkillsPage } from "./pages/SkillsPage";
+import { VoiceWakeWordPage } from "./pages/VoiceWakeWordPage";
+import { PrivacyDataPage } from "./pages/PrivacyDataPage";
+import { AboutPage } from "./pages/AboutPage";
+import type { NovaPage } from "./types/navigation";
+import type { NovaStatus } from "./types/nova";
+import { createPreviewSettings, type PreviewSettings } from "./types/settings";
+import "./styles/app.css";
 
 function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
+  const [page, setPage] = useState<NovaPage>("overview");
+  const [settings, setSettings] = useState(createPreviewSettings);
+  const status: NovaStatus = {
+    enabled: settings.assistantEnabled,
+    wakePhrase: "Hey NOVA",
+    localMode: true,
+    version: "0.1.0",
+    stage: "Foundation",
+  };
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
+  function updateSettings(changes: Partial<PreviewSettings>) {
+    setSettings((current) => ({ ...current, ...changes }));
   }
 
+  const pages = {
+    overview: <OverviewPage status={status} onEnabledChange={(enabled) => updateSettings({ assistantEnabled: enabled })} />,
+    history: <CommandHistoryPage />,
+    skills: <SkillsPage settings={settings} onChange={updateSettings} />,
+    voice: <VoiceWakeWordPage wakePhrase={status.wakePhrase} settings={settings} onChange={updateSettings} />,
+    privacy: <PrivacyDataPage settings={settings} onChange={updateSettings} />,
+    about: <AboutPage version={status.version} />,
+  } satisfies Record<NovaPage, ReactNode>;
+
   return (
-    <main className="container">
-      <h1>Welcome to Tauri + React</h1>
-
-      <div className="row">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
-
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
-    </main>
+    <AppShell status={status} page={page} onNavigate={setPage}>
+      {pages[page]}
+    </AppShell>
   );
 }
 

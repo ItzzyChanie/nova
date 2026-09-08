@@ -1,0 +1,22 @@
+:root {
+  --bg-app: #111426;
+  --bg-sidebar: #111426;
+  --bg-panel: #191d32;
+  --bg-panel-hover: #20253c;
+  --bg-frame: #0b0e15;
+  --border: #2a3047;
+  --border-subtle: #20253a;
+  --text-primary: #f1f3f9;
+  --text-secondary: #adbcda;
+  --text-muted: #8b97b5;
+  --accent-orange: #ff9b45;
+  --accent-orange-soft: #2a2330;
+  --accent-mint: #65e0cc;
+  --danger: #ff818b;
+  --nav-active: #1e233a;
+  --switch-off: #343b53;
+  --indicator-muted: #606984;
+  --radius: 8px;
+  --font-ui: "Segoe UI", system-ui, sans-serif;
+  --font-mono: Consolas, "Cascadia Code", monospace;
+}
