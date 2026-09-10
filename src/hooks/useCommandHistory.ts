@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { isTauri } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { historyForDay, loadCommandHistory, localHistoryDay, type CommandHistoryEntry } from "../services/commandHistory";
+import {
+  historyForDay,
+  loadCommandHistory,
+  localHistoryDay,
+  type CommandHistoryEntry,
+} from "../services/commandHistory";
 
 export function useCommandHistory() {
   const [entries, setEntries] = useState<CommandHistoryEntry[]>([]);
@@ -9,7 +14,7 @@ export function useCommandHistory() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
-  const refresh = useCallback(() => setRevision(value => value + 1), []);
+  const refresh = useCallback(() => setRevision((value) => value + 1), []);
   useEffect(() => {
     let active = true;
     let sequence = 0;
@@ -26,25 +31,41 @@ export function useCommandHistory() {
       updateDay();
       try {
         const history = await loadCommandHistory();
-        if (active && request === sequence) { setEntries(history); setError(null); }
+        if (active && request === sequence) {
+          setEntries(history);
+          setError(null);
+        }
       } catch (reason) {
         if (active && request === sequence) setError(String(reason));
       } finally {
         if (active && request === sequence) setLoading(false);
       }
     };
-    const onFocus = () => { void load(); };
-    const onVisible = () => { if (!document.hidden) void load(); };
+    const onFocus = () => {
+      void load();
+    };
+    const onVisible = () => {
+      if (!document.hidden) void load();
+    };
     if (isTauri()) {
-      void listen("command-history-changed", onFocus).then(dispose => {
-        if (!active) dispose();
-        else { unlisten = dispose; void load(); }
-      }).catch(() => { /* Focus and periodic refresh remain available. */ });
+      void listen("command-history-changed", onFocus)
+        .then((dispose) => {
+          if (!active) dispose();
+          else {
+            unlisten = dispose;
+            void load();
+          }
+        })
+        .catch(() => {
+          /* Focus and periodic refresh remain available. */
+        });
     }
     void load();
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVisible);
-    const interval = setInterval(() => { if (!document.hidden) void load(); }, 15000);
+    const interval = setInterval(() => {
+      if (!document.hidden) void load();
+    }, 15000);
     return () => {
       active = false;
       unlisten?.();
@@ -54,5 +75,12 @@ export function useCommandHistory() {
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, [revision]);
-  return { entries, today: historyForDay(entries, day), day, loading, error, refresh };
+  return {
+    entries,
+    today: historyForDay(entries, day),
+    day,
+    loading,
+    error,
+    refresh,
+  };
 }
