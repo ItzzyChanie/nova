@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-execute-confirmed-application-tool"
+description = "Enables the execute_confirmed_application_tool command without any pre-configured scope."
+commands.allow = ["execute_confirmed_application_tool"]
+
+[[permission]]
+identifier = "deny-execute-confirmed-application-tool"
+description = "Denies the execute_confirmed_application_tool command without any pre-configured scope."
+commands.deny = ["execute_confirmed_application_tool"]

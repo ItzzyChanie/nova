@@ -1,5 +1,5 @@
 export interface NovaStatus {
-  /** Frontend preview preference, not the state of a running assistant engine. */
+  /** Persisted application setting enforced by native assistant entry points. */
   enabled: boolean;
   wakePhrase: string;
   localMode: boolean;

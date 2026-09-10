@@ -1,3 +1,33 @@
 fn main() {
-    tauri_build::build()
+    tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
+        tauri_build::AppManifest::new().commands(&[
+            "show_assistant",
+            "hide_assistant",
+            "resize_assistant",
+            "get_startup_settings",
+            "set_nova_enabled",
+            "set_skill_preference",
+            "set_wake_sensitivity",
+            "set_assistant_paused",
+            "set_speech_model_path",
+            "get_speech_engine_info",
+            "get_local_model_info",
+            "interpret_natural_language",
+            "get_wake_engine_status",
+            "route_tool_request",
+            "execute_confirmed_application_tool",
+            "get_command_history",
+            "clear_command_history_day",
+            "execute_confirmed_file_tool",
+            "execute_confirmed_system_tool",
+            "get_known_projects",
+            "add_known_project",
+            "list_microphone_devices",
+            "set_selected_microphone",
+            "start_microphone_test",
+            "get_microphone_test_state",
+            "stop_microphone_test",
+        ]),
+    ))
+    .expect("failed to build NOVA's Tauri configuration");
 }

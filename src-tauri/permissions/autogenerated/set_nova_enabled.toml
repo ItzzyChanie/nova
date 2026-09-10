@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-nova-enabled"
+description = "Enables the set_nova_enabled command without any pre-configured scope."
+commands.allow = ["set_nova_enabled"]
+
+[[permission]]
+identifier = "deny-set-nova-enabled"
+description = "Denies the set_nova_enabled command without any pre-configured scope."
+commands.deny = ["set_nova_enabled"]

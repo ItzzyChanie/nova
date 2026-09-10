@@ -1,6 +1,8 @@
 import { navigationItems, type NovaPage } from "../../types/navigation";
 import type { NovaStatus } from "../../types/nova";
 
+import { Icon } from "../ui/Icon";
+
 interface SidebarProps {
   status: NovaStatus;
   page: NovaPage;
@@ -23,7 +25,7 @@ export function Sidebar({ status, page, onNavigate }: SidebarProps) {
             aria-current={page === item.id ? "page" : undefined}
             onClick={() => onNavigate(item.id)}
           >
-            <span className="nav-dot" aria-hidden="true" />
+            <span className="nav-icon"><Icon name={item.id} /></span>
             {item.label}
           </button>
         ))}

@@ -6,25 +6,53 @@ import type { SettingsPageProps } from "../types/settings";
 export function PrivacyDataPage({ settings, onChange }: SettingsPageProps) {
   return (
     <>
-      <PageHeading title="Privacy & data" description="NOVA is designed so core assistant processing can remain on this device." preview="Preferences only. No audio capture, data storage, or network policy is implemented. Changes reset on reload." />
+      <PageHeading
+        title="Privacy & data"
+        description="Your data stays close. Your controls stay here."
+        preview="Microphone tests are processed transiently. Audio storage remains unavailable and off."
+      />
       <div className="card-grid">
         <Card
           title="Audio storage"
-          description="Audio storage is disabled by default. Future voice audio should be processed transiently unless explicitly enabled."
-          control={<Toggle label="Audio storage" checked={settings.audioStorage} onChange={(checked) => onChange({ audioStorage: checked })} />}
+          description="Unavailable in this phase. Microphone test samples are discarded immediately and never written to disk."
+          control={
+            <Toggle
+              label="Audio storage"
+              checked={false}
+              disabled
+              onChange={() => undefined}
+            />
+          }
         />
         <Card
           title="Command log"
-          description="Command history will be stored locally once persistence is implemented."
-          control={<Toggle label="Command log" checked={settings.commandLog} onChange={(checked) => onChange({ commandLog: checked })} />}
+          description="Commands are saved locally. Clear today's entries from Command history."
+          control={
+            <Toggle
+              label="Command log"
+              checked={settings.commandLog}
+              onChange={(checked) => onChange({ commandLog: checked })}
+            />
+          }
         />
         <Card
           title="Network access"
           description="Core NOVA functionality is intended to operate without cloud AI services. This preview does not control network access."
-          control={<Toggle label="Network access" checked={settings.networkAccess} onChange={(checked) => onChange({ networkAccess: checked })} />}
+          control={
+            <Toggle
+              label="Network access"
+              checked={settings.networkAccess}
+              onChange={(checked) => onChange({ networkAccess: checked })}
+            />
+          }
         />
-        <Card title="Clear all data" description="Available after local persistence is implemented.">
-          <button type="button" className="button button-danger" disabled>Clear all data</button>
+        <Card
+          title="Clear all data"
+          description="Not implemented. This button does not delete anything. Use Clear today in Command history to delete that day's entries; your settings, models, and files are kept."
+        >
+          <button type="button" className="button button-danger" disabled>
+            Clear all data
+          </button>
         </Card>
       </div>
     </>

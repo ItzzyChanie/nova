@@ -4,6 +4,9 @@ export const navigationItems = [
   { id: "skills", label: "Skills" },
   { id: "voice", label: "Voice & wake word" },
   { id: "privacy", label: "Privacy & data" },
+  { id: "developer", label: "Application tools" },
+  { id: "files", label: "File & folder tools" },
+  { id: "system", label: "System tools" },
   { id: "about", label: "About" },
 ] as const;
 

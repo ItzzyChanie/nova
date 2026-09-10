@@ -2,9 +2,38 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Capability for the main window",
-  "windows": ["main"],
+  "windows": [
+    "main"
+  ],
   "permissions": [
     "core:default",
-    "opener:default"
+    "allow-show-assistant",
+    "allow-get-startup-settings",
+    "allow-set-nova-enabled",
+    "allow-set-skill-preference",
+    "allow-route-tool-request",
+    "allow-execute-confirmed-application-tool",
+    "allow-get-command-history",
+    "allow-clear-command-history-day",
+    "allow-execute-confirmed-file-tool",
+    "allow-execute-confirmed-system-tool",
+    "allow-get-known-projects",
+    "allow-add-known-project",
+    "allow-list-microphone-devices",
+    "allow-set-selected-microphone",
+    "allow-start-microphone-test",
+    "allow-get-microphone-test-state",
+    "allow-stop-microphone-test",
+    "allow-set-wake-sensitivity",
+    "allow-set-assistant-paused",
+    "allow-get-wake-engine-status",
+    "allow-set-speech-model-path",
+    "allow-get-speech-engine-info",
+    "allow-get-local-model-info",
+    "allow-interpret-natural-language",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-close",
+    "core:window:allow-start-dragging"
   ]
 }

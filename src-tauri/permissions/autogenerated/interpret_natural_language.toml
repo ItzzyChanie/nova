@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-interpret-natural-language"
+description = "Enables the interpret_natural_language command without any pre-configured scope."
+commands.allow = ["interpret_natural_language"]
+
+[[permission]]
+identifier = "deny-interpret-natural-language"
+description = "Denies the interpret_natural_language command without any pre-configured scope."
+commands.deny = ["interpret_natural_language"]

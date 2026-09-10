@@ -3,9 +3,10 @@ interface ToggleProps {
   checked: boolean;
   onChange: (checked: boolean) => void;
   describedBy?: string;
+  disabled?: boolean;
 }
 
-export function Toggle({ label, checked, onChange, describedBy = "preview-note" }: ToggleProps) {
+export function Toggle({ label, checked, onChange, describedBy = "preview-note", disabled = false }: ToggleProps) {
   return (
     <button
       type="button"
@@ -14,6 +15,7 @@ export function Toggle({ label, checked, onChange, describedBy = "preview-note" 
       aria-label={label}
       aria-checked={checked}
       aria-describedby={describedBy}
+      disabled={disabled}
       onClick={() => onChange(!checked)}
     >
       <span className="switch-thumb" aria-hidden="true" />

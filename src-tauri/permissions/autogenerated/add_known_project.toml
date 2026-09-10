@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-add-known-project"
+description = "Enables the add_known_project command without any pre-configured scope."
+commands.allow = ["add_known_project"]
+
+[[permission]]
+identifier = "deny-add-known-project"
+description = "Denies the add_known_project command without any pre-configured scope."
+commands.deny = ["add_known_project"]

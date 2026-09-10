@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-get-speech-engine-info"
+description = "Enables the get_speech_engine_info command without any pre-configured scope."
+commands.allow = ["get_speech_engine_info"]
+
+[[permission]]
+identifier = "deny-get-speech-engine-info"
+description = "Denies the get_speech_engine_info command without any pre-configured scope."
+commands.deny = ["get_speech_engine_info"]

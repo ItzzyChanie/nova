@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-route-tool-request"
+description = "Enables the route_tool_request command without any pre-configured scope."
+commands.allow = ["route_tool_request"]
+
+[[permission]]
+identifier = "deny-route-tool-request"
+description = "Denies the route_tool_request command without any pre-configured scope."
+commands.deny = ["route_tool_request"]
