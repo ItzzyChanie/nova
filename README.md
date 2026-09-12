@@ -163,6 +163,12 @@ Capabilities are window-scoped. Production CSP restricts script and connection s
 - Workflow failures do not roll back earlier steps. Editing/deleting an active profile requires stopping it first.
 - Browser navigation tests do not replace native Windows interaction, autostart sign-in, tray, microphone and installer acceptance testing.
 
+## Installed release acceptance
+
+Phase 17 adds local readiness checks under About, bounded event logs under `%LOCALAPPDATA%/com.nova.assistant/logs`, release-only resource resolution and duplicate-launch activation hardening. Corrupt persistent JSON is preserved and rejected rather than silently replaced at startup. No diagnostic downloads models or records audio/transcripts.
+
+Read [the release audit](docs/PHASE17_RELEASE_AUDIT.md) and execute [the installed acceptance worksheet](docs/V1_ACCEPTANCE_TEST.md) before calling this build stable. The installer remains unsigned; real sign-in, audio, tray, project and uninstall acceptance is required.
+
 ## Screenshots
 
 Placeholder: add reviewed screenshots of the dashboard, floating assistant, Projects, Workflows, and Privacy & data before public distribution. Local automated captures are written to `.tmp/phase16-projects.png`.

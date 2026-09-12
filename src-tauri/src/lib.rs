@@ -1,5 +1,9 @@
 use tauri::Manager;
 
+mod runtime_paths;
+mod local_log;
+mod local_store;
+mod diagnostics;
 mod application_control;
 mod assistant;
 mod audio;
@@ -39,14 +43,16 @@ pub fn run() {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_store::Builder::default().build())
         .setup(|app| {
-            if let Err(error) = settings::setup(app) { eprintln!("Settings startup failed: {error}"); }
+            if let Err(error) = local_log::setup(app.handle()) { eprintln!("Local logs unavailable: {error}"); }
+            if let Err(error) = settings::setup(app) { local_log::event("settings", "startup_failed"); eprintln!("Settings startup failed: {error}"); }
             if let Err(error) =
                 audio::synchronize_wake_engine(app.handle(), &app.state::<audio::AudioService>())
             {
-                eprintln!("Could not initialize the local wake engine: {error}");
+                local_log::event("wake", "startup_failed"); eprintln!("Could not initialize the local wake engine: {error}");
             }
-            if let Err(error) = tray::setup(app) { eprintln!("Tray startup failed: {error}"); }
+            if let Err(error) = tray::setup(app) { local_log::event("tray", "startup_failed"); eprintln!("Tray startup failed: {error}"); tray::show_dashboard(app.handle()); }
             wake_shortcut::setup(app);
+            if single_instance::listen(app.handle()).is_err() { local_log::event("runtime", "activation_listener_failed"); tray::show_dashboard(app.handle()); }
 
             if !std::env::args_os().any(|argument| argument == "--background") {
                 tray::show_dashboard(app.handle());
@@ -69,6 +75,8 @@ pub fn run() {
             privacy::set_privacy_setting,
             privacy::clear_local_data,
             privacy::get_runtime_info,
+            diagnostics::run_diagnostics,
+            diagnostics::open_logs_folder,
             settings::set_nova_enabled,
             settings::set_skill_preference,
             settings::set_wake_sensitivity,
@@ -94,6 +102,13 @@ pub fn run() {
             audio::stop_microphone_test
         ])
         .on_window_event(assistant::handle_window_event)
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            if matches!(event, tauri::RunEvent::Exit) {
+                tts::stop(app);
+                app.state::<developer::DeveloperService>().stop_all();
+                local_log::event("runtime", "shutdown");
+            }
+        });
 }

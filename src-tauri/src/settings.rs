@@ -3,7 +3,7 @@ use serde_json::Value;
 use std::path::PathBuf;
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_autostart::ManagerExt;
-use tauri_plugin_store::StoreExt;
+use crate::local_store::SafeStoreExt;
 
 use crate::assistant;
 use crate::audio::{self, AudioService};
@@ -166,7 +166,7 @@ pub fn skill_preferences(app: &AppHandle) -> Result<SkillPreferences, String> {
     }
 }
 
-fn autostart_enabled(app: &AppHandle) -> Result<bool, String> {
+pub fn autostart_enabled(app: &AppHandle) -> Result<bool, String> {
     app.autolaunch()
         .is_enabled()
         .map_err(|error| format!("Could not read Windows startup status: {error}"))
@@ -197,6 +197,7 @@ fn apply_autostart(app: &AppHandle, enabled: bool) -> Result<bool, String> {
             if enabled { "enabled" } else { "disabled" }
         ));
     }
+    crate::local_log::event("autostart", if actual { "enabled" } else { "disabled" });
     Ok(actual)
 }
 

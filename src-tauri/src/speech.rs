@@ -4,7 +4,7 @@ use std::sync::mpsc;
 
 use serde::Serialize;
 use sherpa_onnx::{OfflineRecognizer, OfflineRecognizerConfig, OfflineWhisperModelConfig, SileroVadModelConfig, VadModelConfig, VoiceActivityDetector};
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 
 pub const SPEECH_ENGINE_NAME: &str = "Whisper Tiny English (sherpa-onnx 1.13.7)";
 pub const DEFAULT_MODEL_NAME: &str = "Whisper Tiny English INT8";
@@ -73,11 +73,7 @@ impl Default for CommandCapture {
 
 impl CommandCapture {
     pub fn new(app: &AppHandle) -> Result<Self, String> {
-        let resource = app.path().resource_dir().map_err(|error| error.to_string())?
-            .join("resources/vad/silero_vad.onnx");
-        let model = if resource.is_file() { resource } else {
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/vad/silero_vad.onnx")
-        };
+        let model = crate::runtime_paths::resource(app, "resources/vad/silero_vad.onnx")?;
         Self::with_vad(&model)
     }
 
@@ -319,6 +315,7 @@ fn transcription_worker(receiver: mpsc::Receiver<TranscriptionJob>) {
         match receiver.recv_timeout(std::time::Duration::from_secs(30)) {
             Ok(job) => {
                 let result = transcribe_with_cache(&mut cached, &job.model_path, &job.samples);
+                crate::local_log::event("speech", if result.is_ok() { "transcribed" } else { "transcription_failed" });
                 let _ = job.reply.send(result);
             }
             Err(mpsc::RecvTimeoutError::Timeout) => cached = None,
@@ -494,22 +491,12 @@ fn validate_transcript(
 }
 pub fn effective_model_path(app: &AppHandle) -> Result<PathBuf, String> {
     if let Some(configured) = crate::settings::speech_model_path(app)? {
-        return Ok(PathBuf::from(configured));
+        let path = PathBuf::from(configured);
+        if !path.is_absolute() { return Err("Configure an absolute Whisper model directory in Voice settings.".into()); }
+        return Ok(path);
     }
 
-    let bundled = app
-        .path()
-        .resource_dir()
-        .map_err(|error| format!("Could not locate NOVA resources: {error}"))?
-        .join(SPEECH_RESOURCE_DIRECTORY)
-        .join(DEFAULT_MODEL_DIRECTORY);
-    if model_directory_available(&bundled) {
-        return Ok(bundled);
-    }
-
-    Ok(PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join(SPEECH_RESOURCE_DIRECTORY)
-        .join(DEFAULT_MODEL_DIRECTORY))
+    crate::runtime_paths::resource(app, &format!("{SPEECH_RESOURCE_DIRECTORY}/{DEFAULT_MODEL_DIRECTORY}"))
 }
 
 pub fn engine_info(app: &AppHandle) -> Result<SpeechEngineInfo, String> {

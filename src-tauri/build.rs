@@ -16,6 +16,8 @@ fn main() {
             "set_privacy_setting",
             "clear_local_data",
             "get_runtime_info",
+            "run_diagnostics",
+            "open_logs_folder",
 
             "set_nova_enabled",
             "set_skill_preference",

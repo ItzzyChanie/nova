@@ -1,96 +1,42 @@
 import { useEffect, useState } from "react";
+import { invoke, isTauri } from "@tauri-apps/api/core";
 import { PageHeading } from "../components/ui/PageHeading";
-import { getRuntimeInfo, type RuntimeInfo } from "../services/privacy";
-import { getWakeEngineStatus } from "../services/audio";
-import { getLocalModelInfo } from "../services/languageModel";
-import { getSpeechEngineInfo } from "../services/speech";
-import type { LocalModelInfo } from "../types/languageModel";
-import type { SpeechEngineInfo } from "../types/speech";
-
+interface Check { name: string; status: string; guidance: string }
 export function AboutPage({ version }: { version: string }) {
-  const [runtime,setRuntime] = useState<RuntimeInfo|null>(null);
-  const [error,setError] = useState("");
-  const [speech, setSpeech] = useState<SpeechEngineInfo | null>(null);
-  const [model, setModel] = useState<LocalModelInfo | null>(null);
-  const [wakeEngine, setWakeEngine] = useState("Detecting...");
-
+  const [checks, setChecks] = useState<Check[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [revision, setRevision] = useState(0);
   useEffect(() => {
     let active = true;
-    const failed = (value: unknown) => { if (active) setError(String(value)); };
-    void getRuntimeInfo().then(value => { if (active) setRuntime(value); }).catch(failed);
-    void getSpeechEngineInfo().then(value => { if (active) setSpeech(value); }).catch(failed);
-    void getWakeEngineStatus().then(value => { if (active) setWakeEngine(value.engine); }).catch(value => { if (active) setWakeEngine("Unavailable"); failed(value); });
-    void getLocalModelInfo().then(value => { if (active) setModel(value); }).catch(failed);
+    if (!isTauri()) {
+      setChecks([{ name: "Desktop runtime", status: "Desktop only", guidance: "Run diagnostics in the installed NOVA application." }]);
+      return;
+    }
+    setBusy(true);
+    setError("");
+    void invoke<Check[]>("run_diagnostics").then(value => {
+      if (active) setChecks(value);
+    }).catch(value => {
+      if (active) setError(String(value));
+    }).finally(() => { if (active) setBusy(false); });
     return () => { active = false; };
-  }, []);
-
-  const modelClass =
-    model?.status === "loaded"
-      ? "mint"
-      : model?.status === "error"
-        ? "microphone-error"
-        : "muted";
-  const modelStatus =
-    model?.status === "loaded"
-      ? "Loaded"
-      : model?.status === "notLoaded"
-        ? "Not loaded"
-        : "Error";
-
-  return (
-    <>
-      <PageHeading
-        title="About NOVA"
-        description="Your desktop assistant. Powered locally."
-      />
-      <section
-        className="panel about-panel"
-        aria-labelledby="technical-heading"
-      >
-        <h2 id="technical-heading">Technical information</h2>
-        {error && <p role="alert" className="microphone-error">{error}</p>}
-        <dl className="metadata">
-          <div>
-            <dt>Version</dt>
-            <dd className="mint">{runtime?.version ?? version}</dd>
-          </div>
-          <div>
-            <dt>Local model</dt>
-            <dd className={modelClass}>
-              {model
-                ? `${model.runtime} · ${model.model} · ${modelStatus}`
-                : "Detecting..."}
-            </dd>
-          </div>
-          <div>
-            <dt>Speech engine</dt>
-            <dd
-              className={speech?.modelAvailable ? "mint" : "microphone-error"}
-            >
-              {speech
-                ? `${speech.engine} · ${speech.modelAvailable ? "Available" : "Model missing"}`
-                : "Detecting..."}
-            </dd>
-          </div>
-          <div>
-            <dt>Wake-word engine</dt>
-            <dd className="mint">{wakeEngine}</dd>
-          </div>
-          <div><dt>Platform</dt><dd>{runtime ? `${runtime.platform} / ${runtime.architecture}` : 'Detecting...'}</dd></div>
-          <div><dt>Voice reply engine</dt><dd>{runtime?.tts ?? 'Detecting...'}</dd></div>
-        </dl>
-        {model && (
-          <p className="supporting-note">
-            {model.message} Model size: {model.size}. Expected memory:{" "}
-            {model.ramRequirement}. Expected latency: {model.expectedLatency}.
-          </p>
-        )}
-        <p className="supporting-note">
-          Wake-word detection, speech transcription, and optional language
-          classification run locally. Every selected action still passes native
-          schema validation and permissions.
-        </p>
-      </section>
-    </>
-  );
+  }, [revision]);
+  return <>
+    <PageHeading title="About NOVA" description={`NOVA ${version} - Local desktop assistant`} />
+    <section className="panel about-panel" aria-labelledby="diagnostics-heading">
+      <h2 id="diagnostics-heading">Readiness diagnostics</h2>
+      <p className="supporting-note">Checks stay local and do not download models. Device detection and resource presence do not replace a real voice test.</p>
+      <button disabled={busy || !isTauri()} onClick={() => setRevision(value => value + 1)}>{busy ? "Checking..." : "Run diagnostics"}</button>{" "}
+      <button disabled={!isTauri()} onClick={() => { void invoke("open_logs_folder").catch(value => setError(String(value))); }}>Open logs folder</button>
+      {error && <p role="alert" className="microphone-error">{error}</p>}
+      <dl className="metadata" aria-live="polite" aria-busy={busy}>
+        {checks.map(check => <div key={check.name}>
+          <dt>{check.name}</dt>
+          <dd>{check.status}<p className="supporting-note">{check.guidance}</p></dd>
+        </div>)}
+      </dl>
+      <p className="supporting-note">Publisher signing is not configured for this release. The installer is unsigned.</p>
+    </section>
+  </>;
 }

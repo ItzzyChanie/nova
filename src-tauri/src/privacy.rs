@@ -1,6 +1,6 @@
 use serde_json::{json, Value};
 use tauri::{AppHandle, Manager, WebviewWindow};
-use tauri_plugin_store::StoreExt;
+use crate::local_store::SafeStoreExt;
 
 #[tauri::command]
 pub fn get_privacy_settings(app: AppHandle) -> Result<Value, String> {

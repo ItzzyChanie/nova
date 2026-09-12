@@ -63,6 +63,7 @@ pub fn reply(app: &AppHandle, generation: u64, result: &NaturalCommandResult) {
         &text,
         platform_speak,
     ) {
+        crate::local_log::event("speech", "voice_reply_failed");
         eprintln!("Local voice reply unavailable; keeping the text response: {error}");
     }
 }

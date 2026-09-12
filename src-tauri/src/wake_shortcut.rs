@@ -25,8 +25,9 @@ pub fn setup(app: &tauri::App) {
             }
         })
     {
+        crate::local_log::event("shortcut", "registration_conflict");
         eprintln!(
             "Could not register the global wake shortcut {WAKE_SHORTCUT}. It may already be registered by another application: {error}"
         );
-    }
+    } else { crate::local_log::event("shortcut", "registered"); }
 }

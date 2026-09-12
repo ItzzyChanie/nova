@@ -90,6 +90,8 @@ const SUPPORTED_TOOLS: &[&str] = &[
 pub enum LocalModelStatus {
     Loaded,
     NotLoaded,
+    ModelMissing,
+    ServiceUnavailable,
     Error,
 }
 
@@ -214,7 +216,7 @@ struct OllamaTagsResponse {
     models: Vec<OllamaTag>,
 }
 
-fn model_info_at(address: &str) -> LocalModelInfo {
+pub(crate) fn model_info_at(address: &str) -> LocalModelInfo {
     let base = |status, message| LocalModelInfo {
         runtime: LOCAL_RUNTIME,
         model: LOCAL_MODEL,
@@ -228,7 +230,7 @@ fn model_info_at(address: &str) -> LocalModelInfo {
         Ok(body) => body,
         Err(error) => {
             return base(
-                LocalModelStatus::Error,
+                LocalModelStatus::ServiceUnavailable,
                 format!("Ollama is unavailable at localhost:11434: {error}"),
             )
         }
@@ -255,7 +257,7 @@ fn model_info_at(address: &str) -> LocalModelInfo {
         )
     } else {
         base(
-            LocalModelStatus::NotLoaded,
+            LocalModelStatus::ModelMissing,
             format!("Ollama is running, but {LOCAL_MODEL} is not installed."),
         )
     }
@@ -2417,12 +2419,36 @@ mod tests {
     }
 
     #[test]
+    fn readiness_distinguishes_missing_installed_and_loaded_models() {
+        for (responses, expected) in [
+            (vec![r#"{"models":[]}"#], LocalModelStatus::ModelMissing),
+            (vec![r#"{"models":[{"name":"qwen3:1.7b"}]}"#, r#"{"models":[]}"#], LocalModelStatus::NotLoaded),
+            (vec![r#"{"models":[{"name":"qwen3:1.7b"}]}"#, r#"{"models":[{"name":"qwen3:1.7b"}]}"#], LocalModelStatus::Loaded),
+            (vec!["invalid"], LocalModelStatus::Error),
+        ] {
+            let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+            let address = listener.local_addr().unwrap().to_string();
+            let server = std::thread::spawn(move || {
+                for body in responses {
+                    let (mut stream, _) = listener.accept().unwrap();
+                    stream.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+                    let mut request = [0; 4096];
+                    let _ = stream.read(&mut request).unwrap();
+                    write!(stream, "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}", body.len(), body).unwrap();
+                }
+            });
+            assert_eq!(model_info_at(&address).status, expected);
+            server.join().unwrap();
+        }
+    }
+
+    #[test]
     fn offline_runtime_is_reported_without_retrying() {
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let address = listener.local_addr().unwrap();
         drop(listener);
         let info = model_info_at(&address.to_string());
-        assert_eq!(info.status, LocalModelStatus::Error);
+        assert_eq!(info.status, LocalModelStatus::ServiceUnavailable);
     }
 
     #[test]

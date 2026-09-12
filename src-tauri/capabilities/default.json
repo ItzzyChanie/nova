@@ -21,6 +21,8 @@
     "allow-set-privacy-setting",
     "allow-clear-local-data",
     "allow-get-runtime-info",
+    "allow-run-diagnostics",
+    "allow-open-logs-folder",
 
     "allow-set-nova-enabled",
     "allow-set-skill-preference",

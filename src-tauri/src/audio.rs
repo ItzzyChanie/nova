@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sherpa_onnx::{KeywordSpotter, KeywordSpotterConfig, OnlineStream};
 use tauri::{AppHandle, Emitter, Manager, State};
-use tauri_plugin_store::StoreExt;
+use crate::local_store::SafeStoreExt;
 
 use crate::speech::{
     CaptureOutcome, CommandCapture, SpeechError, SpeechErrorCode, SpeechTranscriber,
@@ -365,6 +365,13 @@ fn selected_microphone(app: &AppHandle) -> Result<Option<String>, String> {
 
 fn set_snapshot(snapshot: &Arc<Mutex<MicrophoneTestSnapshot>>, value: MicrophoneTestSnapshot) {
     if let Ok(mut current) = snapshot.lock() {
+        if std::mem::discriminant(&current.status) != std::mem::discriminant(&value.status) {
+            crate::local_log::event("microphone", match value.status {
+                MicrophoneStatus::Idle => "idle", MicrophoneStatus::Listening => "listening",
+                MicrophoneStatus::Disconnected => "disconnected", MicrophoneStatus::PermissionDenied => "permission_denied",
+                MicrophoneStatus::Unavailable => "unavailable", MicrophoneStatus::Error => "error",
+            });
+        }
         *current = value;
     }
 }
@@ -403,6 +410,7 @@ fn build_stream(
     let device_id = device_info.id.clone();
     let device_name = device_info.name.clone();
     let error_callback = move |error: cpal::StreamError| {
+        crate::local_log::event("microphone", "stream_error");
         set_snapshot(
             &error_snapshot,
             stream_error_snapshot(error, device_id.clone(), device_name.clone()),
@@ -625,6 +633,7 @@ fn build_wake_stream(
     let mut normalizer = WakeNormalizer::new(config.sample_rate.0, config.channels, sender.clone());
     let error_sender = sender;
     let error_callback = move |error: cpal::StreamError| {
+        crate::local_log::event("microphone", "stream_error");
         let _ = error_sender.send(AudioCommand::WakeStreamError(error.to_string()));
     };
 
@@ -761,26 +770,21 @@ fn apply_wake_configuration(
 
 fn set_wake_snapshot(snapshot: &Arc<Mutex<WakeEngineSnapshot>>, value: WakeEngineSnapshot) {
     if let Ok(mut current) = snapshot.lock() {
+        if std::mem::discriminant(&current.status) != std::mem::discriminant(&value.status) {
+            crate::local_log::event("wake", match value.status {
+                WakeEngineStatus::Listening => "listening", WakeEngineStatus::Paused => "paused",
+                WakeEngineStatus::Disabled => "disabled", WakeEngineStatus::Error => "error",
+            });
+        }
         *current = value;
     }
 }
 
 fn wake_model_directory(app: &AppHandle) -> Result<PathBuf, String> {
-    let bundled = app
-        .path()
-        .resource_dir()
-        .map_err(|error| format!("Could not locate NOVA resources: {error}"))?
-        .join(WAKE_MODEL_DIRECTORY);
-    if bundled.is_dir() {
-        return Ok(bundled);
+    let directory = crate::runtime_paths::resource(app, WAKE_MODEL_DIRECTORY)?;
+    if directory.is_dir() { Ok(directory) } else {
+        Err("The bundled wake-word model is missing. Reinstall NOVA.".into())
     }
-
-    let development = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(WAKE_MODEL_DIRECTORY);
-    if development.is_dir() {
-        return Ok(development);
-    }
-
-    Err("The bundled wake-word model directory is unavailable.".into())
 }
 #[tauri::command]
 pub fn list_microphone_devices(app: AppHandle) -> Result<MicrophoneDeviceList, String> {
@@ -1417,7 +1421,8 @@ pub fn synchronize_wake_engine(
         } else {
             None
         },
-        speech_model_path: crate::speech::effective_model_path(app)?,
+        // OFF and pause must release capture even with a stale or invalid model override.
+        speech_model_path: if enabled && !paused { crate::speech::effective_model_path(app)? } else { PathBuf::new() },
     };
     let (reply_tx, reply_rx) = mpsc::channel();
     audio_sender(service)?

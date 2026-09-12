@@ -14,7 +14,7 @@ use std::{
     time::{Duration, Instant},
 };
 use tauri::{AppHandle, Manager, WebviewWindow};
-use tauri_plugin_store::StoreExt;
+use crate::local_store::SafeStoreExt;
 
 pub static CONFIG_LOCK: Mutex<()> = Mutex::new(());
 #[derive(Default)]

@@ -215,6 +215,7 @@ pub fn handle_window_event(window: &tauri::Window, event: &WindowEvent) {
                 }
             }
             "main" => {
+                if window.app_handle().tray_by_id("nova-tray").is_none() { return; }
                 api.prevent_close();
                 if let Err(error) = window.hide() {
                     eprintln!("Could not hide the dashboard after a close request: {error}");

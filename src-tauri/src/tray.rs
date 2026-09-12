@@ -5,6 +5,7 @@ use crate::assistant;
 const TRAY_ID: &str = "nova-tray";
 const OPEN_ID: &str = "nova-tray-open";
 const WAKE_ID: &str = "nova-tray-wake";
+const PAUSE_ID: &str = "nova-tray-pause";
 const HIDE_ID: &str = "nova-tray-hide";
 const QUIT_ID: &str = "nova-tray-quit";
 
@@ -13,6 +14,7 @@ pub fn setup(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
         .text(OPEN_ID, "Open NOVA")
         .text(WAKE_ID, "Wake NOVA")
         .text(HIDE_ID, "Hide NOVA")
+        .text(PAUSE_ID, "Pause / resume assistant")
         .separator()
         .text(QUIT_ID, "Quit NOVA")
         .build()?;
@@ -25,6 +27,11 @@ pub fn setup(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
             OPEN_ID => show_dashboard(app),
             WAKE_ID => wake_assistant(app),
             HIDE_ID => hide_dashboard(app),
+            PAUSE_ID => {
+                let result = crate::settings::assistant_paused(app).and_then(|paused|
+                    crate::settings::set_assistant_paused(app.clone(), app.state::<crate::audio::AudioService>(), !paused));
+                if result.is_err() { crate::local_log::event("tray", "pause_failed"); show_dashboard(app); }
+            },
             QUIT_ID => { app.state::<crate::developer::DeveloperService>().stop_all(); app.exit(0); },
             _ => {}
         });
@@ -36,6 +43,7 @@ pub fn setup(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
     }
 
     tray.build(app)?;
+    crate::local_log::event("tray", "ready");
     Ok(())
 }
 

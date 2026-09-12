@@ -13,7 +13,7 @@ use std::{
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tauri::AppHandle;
-use tauri_plugin_store::StoreExt;
+use crate::local_store::SafeStoreExt;
 
 #[cfg(windows)]
 use std::os::windows::ffi::OsStrExt;

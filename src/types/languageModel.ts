@@ -1,6 +1,6 @@
 import type { ToolRequest, ToolResult } from "./tools";
 
-export type LocalModelStatus = "loaded" | "notLoaded" | "error";
+export type LocalModelStatus = "loaded" | "notLoaded" | "modelMissing" | "serviceUnavailable" | "error";
 
 export interface LocalModelInfo {
   runtime: string;

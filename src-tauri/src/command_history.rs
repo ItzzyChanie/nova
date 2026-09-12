@@ -3,7 +3,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, WebviewWindow};
 use std::sync::Mutex;
-use tauri_plugin_store::StoreExt;
+use crate::local_store::SafeStoreExt;
 
 use crate::tool_router::{ToolResult, ToolResultStatus};
 
@@ -53,6 +53,7 @@ pub fn record(
     record_entry(app,tool,display_command,result,0,"typed")
 }
 pub fn record_entry(app: &AppHandle, tool: &str, display_command: String, result: &ToolResult, duration: u64, source: &str) -> Result<(),String> {
+    crate::local_log::event(if tool == "workflow.run" { "workflow" } else { "tool" }, status_label(result.status));
     if SUPPRESS.with(|v|v.get()) { return Ok(()); }
     let _guard = HISTORY_LOCK.lock().map_err(|_| "Command history is busy.".to_string())?;
     if !crate::settings::command_log(app)? { return Ok(()); }
