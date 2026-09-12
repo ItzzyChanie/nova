@@ -21,6 +21,7 @@ import type {
 } from "../types/audio";
 import {
   saveAssistantPaused,
+  saveVoiceReply,
   saveWakeSensitivity,
 } from "../services/settingsStore";
 import {
@@ -162,7 +163,7 @@ export function VoiceWakeWordPage({
     void refreshDevices();
     void refreshWakeStatus();
     void refreshSpeechInfo();
-    const statusTimer = window.setInterval(() => void refreshWakeStatus(), 250);
+    const statusTimer = window.setInterval(() => { if (!document.hidden) void refreshWakeStatus(); }, 500);
     return () => {
       window.clearInterval(statusTimer);
       void stopMicrophoneTest().catch((stopError: unknown) => {
@@ -231,6 +232,19 @@ export function VoiceWakeWordPage({
       await refreshWakeStatus();
     } catch (saveError: unknown) {
       console.error("[NOVA] Could not save wake sensitivity.", saveError);
+      setError(errorMessage(saveError));
+    } finally {
+      setVoiceSaving(false);
+    }
+  }
+
+  async function updateVoiceReply(enabled: boolean) {
+    if (voiceSaving) return;
+    setVoiceSaving(true);
+    setError(null);
+    try {
+      onChange({ voiceReply: await saveVoiceReply(enabled) });
+    } catch (saveError: unknown) {
       setError(errorMessage(saveError));
     } finally {
       setVoiceSaving(false);
@@ -612,12 +626,13 @@ export function VoiceWakeWordPage({
 
         <Card
           title="Voice reply"
-          description="NOVA can speak responses back using a future local text-to-speech engine."
+          description="Speak short responses using an installed Windows desktop voice. Everything stays on this device. Wake NOVA to interrupt."
           control={
             <Toggle
               label="Voice reply"
               checked={settings.voiceReply}
-              onChange={(checked) => onChange({ voiceReply: checked })}
+              disabled={voiceSaving}
+              onChange={(checked) => void updateVoiceReply(checked)}
             />
           }
         />

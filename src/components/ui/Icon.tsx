@@ -7,6 +7,8 @@ const paths = {
   voice:
     "M9 5a3 3 0 0 1 6 0v7a3 3 0 0 1-6 0Z M5 10v2a7 7 0 0 0 14 0v-2 M12 19v3 M9 22h6",
   privacy: "m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6Z m-4 9 3 3 5-6",
+  projects: "M3 7V4h6l3 3h9v13H3Z M8 12l-2 2 2 2 m8-4 2 2-2 2",
+  workflows: "M3 3h6v6H3Z M15 15h6v6h-6Z M6 9v9h9 M15 3h6v6h-6Z M9 6h6",
   developer: "M3 4h18v16H3Z M3 8h18 m-14 4 3 2-3 2 m6 0h4",
   files: "M3 7V4h6l3 3h9v13H3Z",
   system: "M3 4h18v13H3Z M12 17v4 M8 21h8",

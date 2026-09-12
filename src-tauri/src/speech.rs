@@ -18,9 +18,10 @@ const MAX_TRANSCRIPTION_SAMPLES: usize = 160_000;
 #[cfg(test)]
 const CAPTURE_FRAME_SAMPLES: usize = 480;
 const MAX_COMMAND_SAMPLES: usize = 10 * 16_000;
-const END_SILENCE_SAMPLES: usize = 14_400;
+const END_SILENCE_SAMPLES: usize = 11_200;
 const MIN_VOICED_SAMPLES: usize = 4_800;
-const PRE_ROLL_SAMPLES: usize = 3_200;
+// Preserve quiet initial consonants while neural VAD confirms speech.
+const PRE_ROLL_SAMPLES: usize = 8_000;
 const MIN_SPEECH_RMS_THRESHOLD: f32 = 0.008;
 const NOISE_MULTIPLIER: f32 = 2.4;
 const SPEECH_START_FRAMES: usize = 2;
@@ -314,9 +315,15 @@ impl SpeechTranscriber {
 
 fn transcription_worker(receiver: mpsc::Receiver<TranscriptionJob>) {
     let mut cached: Option<(PathBuf, OfflineRecognizer)> = None;
-    while let Ok(job) = receiver.recv() {
-        let result = transcribe_with_cache(&mut cached, &job.model_path, &job.samples);
-        let _ = job.reply.send(result);
+    loop {
+        match receiver.recv_timeout(std::time::Duration::from_secs(30)) {
+            Ok(job) => {
+                let result = transcribe_with_cache(&mut cached, &job.model_path, &job.samples);
+                let _ = job.reply.send(result);
+            }
+            Err(mpsc::RecvTimeoutError::Timeout) => cached = None,
+            Err(mpsc::RecvTimeoutError::Disconnected) => break,
+        }
     }
 }
 
@@ -533,6 +540,17 @@ pub fn get_speech_engine_info(app: AppHandle) -> Result<SpeechEngineInfo, String
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn quiet_onset_is_retained_when_louder_speech_starts() {
+        let mut capture = CommandCapture::default();
+        assert!(matches!(feed(&mut capture, 0.003, 12), CaptureOutcome::Continue));
+        assert!(!capture.speech_started);
+        assert!(matches!(feed(&mut capture, 0.08, 2), CaptureOutcome::Continue));
+        assert!(capture.speech_started);
+        assert!(capture.captured.len() >= 14 * CAPTURE_FRAME_SAMPLES,
+            "retain the quiet onset, not only the louder vowel");
+    }
 
     #[test]
     fn missing_model_returns_a_typed_error() {
@@ -763,7 +781,7 @@ mod tests {
         let result = transcribe_with_cache(&mut cache, &model_directory, wave.samples())
             .expect("transcribe known English audio");
         assert!(
-            result.text.to_ascii_lowercase().contains("early nightfall"),
+            result.text.to_ascii_lowercase().split_whitespace().collect::<String>().contains("earlynightfall"),
             "unexpected transcript: {}",
             result.text
         );

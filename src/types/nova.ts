@@ -4,5 +4,5 @@ export interface NovaStatus {
   wakePhrase: string;
   localMode: boolean;
   version: string;
-  stage: "Foundation";
+  stage: "Development release";
 }

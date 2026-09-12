@@ -1,89 +1,164 @@
-# NOVA
+# NOVA 1.0.1 - local Windows development assistant
 
-Local AI Desktop Assistant, built with Tauri 2, Rust, React, and TypeScript.
+NOVA is a compact desktop assistant with a dark navy interface, orange actions, mint status indicators and monospace technical details. It combines local wake-word detection, speech recognition, optional voice replies, and permission-checked desktop tools. Development projects and reusable workflows are configured by the user, not generated and executed by an AI model.
 
-## Phase 02: floating assistant
+This is a **local Windows development release**, not a signed public distribution. See [the Phase 16 engineering report](docs/PHASE16_ENGINEERING_REPORT.md) for measured validation and remaining manual checks.
 
-The main window provides six navigable pages and interactive configuration previews.
-Toggles and the sensitivity selector update typed React state only. No audio is
-captured, no permissions are granted, and no commands are processed. Preferences
-survive page navigation but reset on reload or restart. Clear all data remains disabled.
-Test Assistant now shows the separate, reusable native assistant window.
+## Current installed release
 
-The `assistant` window is created hidden at startup. It is a compact, opaque,
-undecorated panel that stays above normal windows and is excluded from the taskbar.
-Each activation recalculates its position at the top-center of the dashboard's
-monitor work area, falling back to the primary monitor. Sizing and margins use
-the target monitor's scale factor; no display resolution is assumed.
+[Version 1.0.1 release notes](docs/RELEASE_1.0.1.md) describe the floating assistant and dashboard layout fixes. Each installed release has a new version: patch increments for fixes (1.0.1), minor increments for new features (1.1.0). Package, Cargo, and Tauri versions must match before packaging.
 
-Dismiss, Escape, and the native close gesture hide the assistant rather than
-destroying it. Closing the dashboard exits NOVA, including the hidden assistant.
-There is no tray/background lifecycle yet. The assistant remains in `idle`; the
-other typed UI states are reserved for future integrations. No audio or AI runs.
+## Features
 
-## Development
+- Floating assistant, Alt+N wake shortcut, Hey NOVA/NOVA keyword detection, tray controls, and a persistent global OFF switch tied to Windows autostart.
+- Local Whisper transcription through sherpa-onnx; optional Windows SAPI voice replies with wake interruption and text fallback.
+- Deterministic natural-language routing for common commands, with an optional local Ollama `qwen3:1.7b` classifier.
+- Native application, approved file/folder, system-volume, system-information and window tools.
+- Persistent project profiles: ID, name, path, editor, frontend command, backend command, working directory, development URL, notes and explicit voice permission.
+- `developer.open_project`, `developer.start_project`, `developer.stop_project`, `developer.open_editor`, `developer.open_dev_url` and `workflow.run`.
+- Workflows with editable names, ordered steps, enable/disable, voice permission, and confirmed deletion. Each step uses a typed native NOVA tool; recursion and arbitrary scripts are rejected.
+- Local history with timestamp, input source, input, interpreted action, result, status and duration. Logging can be disabled.
+- Real privacy controls, confirmed clearing of NOVA data, detected runtime metadata, and single-instance protection.
 
-Install dependencies with `npm ci`, then run `npm run tauri dev` to launch the
-Windows desktop app. This requires the Rust MSVC toolchain, Visual Studio C++
-build tools, Node.js, and WebView2. Vite uses port 1420; run one dev session at a time.
+## Privacy philosophy
 
-Validate the frontend with `npm run build` and Rust with
-`cargo check --locked --manifest-path src-tauri/Cargo.toml`.
-Positioning tests: `cargo test --locked --lib --manifest-path src-tauri/Cargo.toml`.
+Core wake detection, transcription, speech synthesis, intent classification and native tools require no cloud AI service. Microphone audio is processed in memory and not saved by NOVA. History and configurations are stored in the application's local data directory.
 
-## Frontend structure
+The Network access setting controls NOVA opening external HTTP(S) websites. Loopback Ollama and development URLs stay available. **It is not a firewall**: editors, browsers, npm scripts, .NET applications and other launched programs have their own permissions and network behavior.
 
-- `src/App.tsx`: typed navigation and in-memory preview preferences.
-- `src/main.tsx`: selects the dashboard or assistant root by native window label.
-- `src/components/assistant/AssistantWindow.tsx`: compact idle assistant and dismissal.
-- `src/services/assistantWindow.ts`: typed calls to the two native lifecycle commands.
-- `src/components/layout/`: header-free shell, sidebar, and main landmark.
-- `src/components/ui/`: shared page headings, cards, and keyboard-accessible toggles.
-- `src/pages/`: separate Overview, CommandHistory, Skills, VoiceWakeWord, PrivacyData, and About page components.
-- `src/types/navigation.ts`: navigation labels and page identifiers.
-- `src/types/nova.ts`: typed frontend status contract.
-- `src/types/assistant.ts`: idle, listening, thinking, executing, success, and error states.
-- `src/types/settings.ts`: preview defaults, skill definitions, and preference types.
-- `src/styles/tokens.css`: centralized color and typography tokens.
-- `src/styles/app.css`: shared styles and responsive layout.
-- `src/styles/assistant.css`: isolated assistant styling using the same design tokens.
-- `src-tauri/src/assistant.rs`: positioning, show/hide commands, and close handling.
+Clear local data removes NOVA settings, history, project profiles and workflows, clears transient conversation/search context, stops managed project processes, and turns NOVA/autostart off. It keeps actual project files and bundled model assets. You must type `CLEAR NOVA DATA` to proceed.
 
-## Assistant permissions and smoke check
+Initial provisioning of Node, Rust, WebView2, Ollama and model files may require downloads. Once installed, core inference does not depend on a cloud endpoint.
 
-App commands are registered through Tauri's `AppManifest` so they participate in
-the capability system. Only `main` gets `allow-show-assistant`; only `assistant`
-gets `allow-hide-assistant`. Both commands also verify their calling window label.
-No broad frontend window-mutation, shell, filesystem, or process permission is added.
-The dashboard's existing capabilities remain scoped to `main`.
-See [Tauri's capability documentation](https://v2.tauri.app/security/capabilities/).
+## Architecture and technology
 
-Launch NOVA: only the dashboard should be visible. Click Test Assistant, dismiss
-it, and repeat; the same assistant must reappear, without duplicates. Move the
-dashboard to another monitor and repeat to check placement. Escape and Alt+F4 on
-the assistant should hide it. Dashboard navigation should continue working.
-Finally close the dashboard and confirm both native windows exit.
+```text
+React 19 / TypeScript / Vite
+  Dashboard + assistant webview
+          |
+  Tauri 2 scoped IPC capabilities
+          |
+  Native Rust schema validation + skill permissions
+          |
+  Application / file / system / window adapters
+  Saved project runner / saved workflow runner
+          |
+  Windows APIs + owned Job Objects
 
-Hooks, services, and stores can be added when features need them. Tray behavior,
-autostart, shortcuts, voice processing, AI, and desktop automation are not part
-of this phase.
+Microphone -> CPAL conditioning -> sherpa-onnx wake detector
+           -> VAD + Whisper -> deterministic parser / local Ollama
+           -> native tool router -> text + optional Windows SAPI
+```
 
-## UI direction
+The frontend cannot run a shell or access the filesystem through a broad plugin. The assistant webview receives voice/state events and has only hide/resize permissions. Configuration, data clearing and execution controls belong to the dashboard.
 
-Use a compact developer-tool interface based on the supplied visual references:
-navy/charcoal surfaces, thin borders, small radii, orange branding and selection,
-mint for local/success indicators, and red only for errors or destructive actions.
-Shared colors and typography live in `src/styles/tokens.css` as CSS custom properties.
-Use sans-serif for primary UI and monospace selectively for technical metadata.
+- Rust, Tauri 2, React 19, TypeScript 6, Vite 8.
+- CPAL, sherpa-onnx, ONNX models for keyword spotting, VAD and Whisper.
+- Windows SAPI desktop voices, COM, registry discovery and Windows Job Objects.
+- `tauri-plugin-store`, autostart and global-shortcut plugins.
+- Optional loopback-only Ollama API with `qwen3:1.7b`.
 
-The default window is 900x650, with a 640x480 minimum. Keep the 220px sidebar on
-normal desktop windows; smaller widths use a narrower left sidebar and one-column
-cards. Do not switch to mobile navigation. Native window decorations provide the
-title bar; do not add an inner title strip or decorative window-control dots.
-Avoid hero layouts, excessive gradients, large icons, and invented metrics.
+## Requirements
 
-The assistant starts ON as a development preview, while no engine is running.
-Apps/files and window-management skill previews start ON; other skill previews
-start OFF. Voice reply, audio storage, and network access start OFF; command log
-starts ON as a preference preview. Sensitivity starts at Medium. These states do
-not represent live capabilities, installed engines, or native permissions.
+- Windows desktop with an x64 MSVC Rust toolchain and Visual Studio C++ build tools/Windows SDK.
+- Node.js compatible with the pinned Vite toolchain (development machine: Node 22.15.0) and npm.
+- WebView2 runtime, an available microphone for voice input, and an output device for voice replies.
+- Microsoft David or Zira desktop voice for current SAPI support; otherwise NOVA keeps text responses.
+- Bundled wake/VAD/Whisper resources in `src-tauri/resources`.
+- Optional Ollama and the `qwen3:1.7b` model for commands needing model interpretation.
+- For project commands: a conventional Node.js installation containing npm, or the .NET SDK. A supported editor must be installed.
+
+## Development setup
+
+```powershell
+npm ci
+npm run tauri dev
+```
+
+For UI-only work, `npm run dev` starts Vite. A browser preview cannot exercise native IPC or desktop tools; those pages report unavailable backend operations.
+
+Provision optional language inference separately:
+
+```powershell
+ollama pull qwen3:1.7b
+```
+
+Ollama must be serving on `127.0.0.1:11434`. The native client rejects non-loopback endpoints. Common deterministic commands remain usable if Ollama is unavailable.
+
+## Configure a project
+
+1. Open **Projects > New project**.
+2. Set its name, existing absolute folder and installed editor.
+3. Configure `npm run <script>` and/or `dotnet run`. Both commands use the configured working directory, which must be within the project root. A blank working directory uses the root.
+4. Optionally set a localhost development URL, such as `http://localhost:5173`.
+5. Review and approve the configuration. Enable **Allow voice execution** only if spoken requests may run these saved actions.
+6. Enable **Developer projects** in Skills, then use Open editor, Start, Stop or Open URL.
+
+Start validates the saved runner and working directory, opens the editor, starts configured processes, waits up to 20 seconds for the configured loopback port, and opens the URL when reachable. A port already in use is reported instead of launching a duplicate server. NOVA's process Job Objects include descendants; Stop terminates only process trees it owns. Quitting NOVA or turning it off also stops these processes. Editor windows are not forcibly closed.
+
+Commands are deliberately limited to `npm run <script>` and `dotnet run`. Arbitrary shell text, command chaining, inline scripts and model-provided command/path overrides are rejected. npm package scripts are still executable code: approve only repositories you trust, and review changes to their scripts.
+
+## Workflows and voice
+
+In **Workflows**, create a routine, add supported actions, reorder steps with Up/Down, review its full sequence and save it. Actions include applications, projects, approved folders, HTTP(S) websites, volume and window focus. Skills and network preferences are checked at execution time. A failure stops subsequent steps; earlier successful actions remain in place.
+
+Examples after configuring and approving the corresponding profiles:
+
+- "Hey NOVA, start ProctorX."
+- "Hey NOVA, start coding mode."
+- "Open my project in VS Code." (one saved project; uses its configured editor)
+- "Stop ProctorX."
+
+Voice execution is OFF by default per project/workflow, including migrated profiles. Without this explicit approval, NOVA presents a confirmation-required response. A model cannot set the approval flag, create a profile or change its commands.
+
+## Build and validation
+
+```powershell
+npm run build
+cargo check --manifest-path src-tauri/Cargo.toml --offline
+cargo test --manifest-path src-tauri/Cargo.toml --lib --offline
+npm run tauri build
+```
+
+The configured Windows bundle target is NSIS. A successful production build places the executable under `src-tauri/target/release` and the installer under `src-tauri/target/release/bundle/nsis`. Building may download installer tooling on its first run. The actual packaging result is recorded in the engineering report; do not infer installer success from `cargo check` alone.
+
+Local browser regression, after `npm run build`:
+
+```powershell
+node scripts/phase16-ui-smoke.mjs
+```
+
+This uses an isolated headless Edge profile, checks navigation and editor UI, and writes results/screenshots under ignored `.tmp`. It does not mock or validate native IPC.
+
+Hardware/model smoke tests are explicitly ignored in the default Rust suite. See the engineering report and [manual voice matrix](docs/MANUAL_VOICE_TEST_MATRIX.md) for their prerequisites and measured outcomes.
+
+## Resource behavior
+
+- One NOVA instance per Windows session; subsequent launches bring the existing dashboard forward when available.
+- Wake detection runs continuously only when NOVA is enabled and not paused. OFF drops its active stream/detector. The shortcut remains registered but is gated by the native OFF check.
+- Whisper is loaded on demand and its cache is released after 30 seconds idle.
+- Ollama receives a 30-second keep-alive; NOVA does not start duplicate Ollama servers or kill an externally managed Ollama process.
+- SAPI objects are released after each reply. Wake interruption purges current output before recording resumes.
+- Background worker threads block on channels while idle. Project status polling is limited to the open Projects page and skips hidden documents.
+
+## Security model
+
+Trust is placed in the local user, approved project contents and installed applications. Model output has no authority. Models produce typed tool requests only. Native code validates names, argument shapes, bounds, skills and OFF state again before execution. Unknown keys are rejected, including attempts to attach command strings or approval flags to project requests.
+
+A saved workflow can call only its approved step allowlist; it cannot recursively run workflows or execute `developer.runScript`, file deletion or shutdown. Arbitrary custom scripts remain unsupported and denied. Project commands bypass a shell at the NOVA process boundary, and Windows suspended-start/job assignment ensures ownership before code runs. Project scripts themselves are not sandboxed.
+
+Capabilities are window-scoped. Production CSP restricts script and connection sources; no broad shell, filesystem or HTTP plugin is exposed. External URLs use HTTP(S) only, reject embedded credentials, and obey the network preference. File tools retain their existing canonical-path containment checks.
+
+## Current limitations
+
+- Windows-only development release; unsigned installer, with no updater or signing infrastructure.
+- English-oriented bundled STT and David/Zira TTS. Multilingual recognition requires a compatible user-selected Whisper export.
+- Acoustic wake accuracy, echo-induced wakes and microphone behavior depend on hardware. There is no full acoustic echo cancellation.
+- Project runners currently support npm scripts and `dotnet run`; frontend/backend share one working directory. Output logs and terminal tabs are not embedded in the UI.
+- URL readiness checks loopback port reachability, not application-specific health or HTTPS certificate validity.
+- Workflow failures do not roll back earlier steps. Editing/deleting an active profile requires stopping it first.
+- Browser navigation tests do not replace native Windows interaction, autostart sign-in, tray, microphone and installer acceptance testing.
+
+## Screenshots
+
+Placeholder: add reviewed screenshots of the dashboard, floating assistant, Projects, Workflows, and Privacy & data before public distribution. Local automated captures are written to `.tmp/phase16-projects.png`.

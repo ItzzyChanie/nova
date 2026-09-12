@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { getRuntimeInfo } from "./services/privacy";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { AppShell } from "./components/layout/AppShell";
 import { OverviewPage } from "./pages/OverviewPage";
@@ -7,6 +8,8 @@ import { SkillsPage } from "./pages/SkillsPage";
 import { VoiceWakeWordPage } from "./pages/VoiceWakeWordPage";
 import { PrivacyDataPage } from "./pages/PrivacyDataPage";
 import { AboutPage } from "./pages/AboutPage";
+import { ProjectsPage } from "./pages/ProjectsPage";
+import { WorkflowsPage } from "./pages/WorkflowsPage";
 import { DeveloperToolsPage } from "./pages/DeveloperToolsPage";
 import { FileToolsPage } from "./pages/FileToolsPage";
 import { SystemControlsPage } from "./pages/SystemControlsPage";
@@ -37,6 +40,8 @@ function errorMessage(error: unknown): string {
 }
 
 function App() {
+  const [version,setVersion] = useState("...");
+  useEffect(() => { void getRuntimeInfo().then(info=>setVersion(info.version)).catch(()=>setVersion("Unavailable")); }, []);
   const [page, setPage] = useState<NovaPage>("overview");
   const [settings, setSettings] = useState(createDefaultSettings);
   const [autostartEnabled, setAutostartEnabled] = useState<boolean | null>(
@@ -51,8 +56,8 @@ function App() {
     enabled: settings.novaEnabled,
     wakePhrase: "NOVA or Hey NOVA",
     localMode: true,
-    version: "0.1.0",
-    stage: "Foundation",
+    version,
+    stage: "Development release",
   };
 
   useEffect(() => {
@@ -66,6 +71,7 @@ function App() {
           skills: startupSettings.skillPreferences,
           sensitivity: startupSettings.wakeSensitivity,
           assistantPaused: startupSettings.assistantPaused,
+          voiceReply: startupSettings.voiceReply,
         }));
         setAutostartEnabled(startupSettings.autostartEnabled);
         setSettingsError(settingsMismatchMessage(startupSettings));
@@ -101,6 +107,7 @@ function App() {
         skills: startupSettings.skillPreferences,
         sensitivity: startupSettings.wakeSensitivity,
         assistantPaused: startupSettings.assistantPaused,
+        voiceReply: startupSettings.voiceReply,
       }));
       setAutostartEnabled(startupSettings.autostartEnabled);
       setSettingsError(settingsMismatchMessage(startupSettings));
@@ -137,6 +144,7 @@ function App() {
         skills: startupSettings.skillPreferences,
         sensitivity: startupSettings.wakeSensitivity,
         assistantPaused: startupSettings.assistantPaused,
+        voiceReply: startupSettings.voiceReply,
       }));
       setAutostartEnabled(startupSettings.autostartEnabled);
       setSettingsError(settingsMismatchMessage(startupSettings));
@@ -152,6 +160,7 @@ function App() {
           skills: startupSettings.skillPreferences,
           sensitivity: startupSettings.wakeSensitivity,
           assistantPaused: startupSettings.assistantPaused,
+          voiceReply: startupSettings.voiceReply,
         }));
         setAutostartEnabled(startupSettings.autostartEnabled);
       } catch (reloadError: unknown) {
@@ -214,6 +223,8 @@ function App() {
     ),
     privacy: <PrivacyDataPage settings={settings} onChange={updateSettings} />,
     developer: <DeveloperToolsPage />,
+    projects: <ProjectsPage />,
+    workflows: <WorkflowsPage />,
     files: <FileToolsPage />,
     system: <SystemControlsPage />,
     about: <AboutPage version={status.version} />,

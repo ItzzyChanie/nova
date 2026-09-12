@@ -25,7 +25,7 @@ pub fn setup(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
             OPEN_ID => show_dashboard(app),
             WAKE_ID => wake_assistant(app),
             HIDE_ID => hide_dashboard(app),
-            QUIT_ID => app.exit(0),
+            QUIT_ID => { app.state::<crate::developer::DeveloperService>().stop_all(); app.exit(0); },
             _ => {}
         });
 
@@ -65,7 +65,7 @@ fn wake_assistant(app: &tauri::AppHandle) {
 
     if let Err(error) = assistant::show_assistant_window(&window) {
         eprintln!("Could not wake NOVA from the tray: {error}");
-    }
+    } else { assistant::start_manual_listening(app.clone()); }
 }
 
 fn hide_dashboard(app: &tauri::AppHandle) {

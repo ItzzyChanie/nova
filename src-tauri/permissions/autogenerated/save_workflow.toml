@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-save-workflow"
+description = "Enables the save_workflow command without any pre-configured scope."
+commands.allow = ["save_workflow"]
+
+[[permission]]
+identifier = "deny-save-workflow"
+description = "Denies the save_workflow command without any pre-configured scope."
+commands.deny = ["save_workflow"]

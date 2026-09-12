@@ -21,10 +21,10 @@ export const skillDefinitions = [
   },
   {
     id: "web",
-    title: "Web search",
+    title: "Website actions",
     description:
-      "Request an approved browser search through a typed native adapter.",
-    implemented: false,
+      "Open approved workflow websites. External sites also require Network access.",
+    implemented: true,
     toolCategories: ["browser"],
     enabledPolicy: "Confirmation required",
   },
@@ -64,12 +64,12 @@ export const skillDefinitions = [
   },
   {
     id: "scripts",
-    title: "Custom scripts",
+    title: "Developer projects",
     description:
-      "Future explicitly registered automation only; arbitrary script text is never accepted.",
-    implemented: false,
+      "Open and run explicitly approved project commands. Arbitrary model-generated scripts remain denied.",
+    implemented: true,
     toolCategories: ["developer"],
-    enabledPolicy: "Denied in Phase 07",
+    enabledPolicy: "Approved project profiles only",
   },
 ] as const satisfies readonly {
   id: string;

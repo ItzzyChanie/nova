@@ -2,6 +2,8 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 
 export interface CommandHistoryEntry {
   timestamp: number;
+  durationMillis: number;
+  inputSource: string;
   tool: string;
   displayCommand: string;
   result: string;

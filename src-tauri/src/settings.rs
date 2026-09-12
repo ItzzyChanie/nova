@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::path::PathBuf;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_store::StoreExt;
 
@@ -51,6 +51,7 @@ pub struct VoiceSettings {
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StartupSettings {
+    voice_reply: bool,
     nova_enabled: bool,
     autostart_enabled: bool,
     skill_preferences: SkillPreferences,
@@ -234,6 +235,7 @@ fn persist_voice_settings(
 
 fn startup_settings(app: &AppHandle) -> Result<StartupSettings, String> {
     Ok(StartupSettings {
+        voice_reply: voice_reply(app)?,
         nova_enabled: nova_enabled(app)?,
         autostart_enabled: autostart_enabled(app)?,
         skill_preferences: skill_preferences(app)?,
@@ -287,6 +289,7 @@ pub fn update_nova_enabled(
     }
 
     if !enabled {
+        app.state::<crate::developer::DeveloperService>().stop_all();
         if let Err(error) = assistant::hide_assistant_window(app) {
             eprintln!("NOVA was disabled, but its assistant window could not be hidden: {error}");
         }
@@ -414,4 +417,40 @@ mod tests {
             "\"High\""
         );
     }
+}
+
+pub fn voice_reply(app: &AppHandle) -> Result<bool, String> {
+    let store = app.store(SETTINGS_FILE).map_err(|e| e.to_string())?;
+    Ok(store
+        .get("voiceReply")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false))
+}
+
+#[tauri::command]
+pub async fn set_voice_reply(app: AppHandle, enabled: bool) -> Result<bool, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let store = app.store(SETTINGS_FILE).map_err(|e| e.to_string())?;
+        let previous = store.get("voiceReply");
+        store.set("voiceReply", Value::Bool(enabled));
+        if let Err(error) = store.save() {
+            match previous {
+                Some(value) => store.set("voiceReply", value),
+                None => { store.delete("voiceReply"); }
+            }
+            return Err(format!("Could not save Voice reply: {error}"));
+        }
+        if !enabled {
+            crate::tts::stop(&app);
+        }
+        Ok(enabled)
+    }).await.map_err(|e| e.to_string())?
+}
+
+
+pub fn command_log(app: &AppHandle) -> Result<bool,String> { preference(app,"commandLog",true) }
+pub fn network_access(app: &AppHandle) -> Result<bool,String> { preference(app,"networkAccess",false) }
+fn preference(app: &AppHandle,key: &str,default: bool) -> Result<bool,String> {
+    let store = app.store(SETTINGS_FILE).map_err(|e|e.to_string())?;
+    Ok(store.get(key).and_then(|v|v.as_bool()).unwrap_or(default))
 }

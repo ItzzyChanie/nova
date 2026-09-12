@@ -53,7 +53,8 @@ pub async fn show_assistant(window: WebviewWindow) -> Result<(), String> {
 pub fn start_manual_listening(app: AppHandle) {
     // The audio worker can call window APIs, so never wait for it on the UI thread.
     tauri::async_runtime::spawn_blocking(move || {
-        match audio::begin_followup_capture(&app.state::<audio::AudioService>()) {
+        crate::tts::stop(&app);
+        match audio::begin_followup_capture(&app.state::<audio::AudioService>(), None) {
             Ok(()) => update_voice_state(&app, "listening", None, None),
             Err(error) => update_voice_state(&app, "error", None, Some(error)),
         }
@@ -69,7 +70,7 @@ pub async fn resize_assistant(window: WebviewWindow, height: f64) -> Result<(), 
     let monitor = window.current_monitor().map_err(|e| e.to_string())?
         .ok_or("The assistant monitor is unavailable.")?;
     let max_height = monitor.work_area().size.height as f64 / scale - TOP_MARGIN;
-    let height = height.max(144.0).min(max_height.max(1.0));
+    let height = height.max(180.0).min(max_height.max(1.0));
     let width = window.inner_size().map_err(|e| e.to_string())?.width as f64 / scale;
     window.set_size(LogicalSize::new(width, height)).map_err(|e| e.to_string())
 }
@@ -133,6 +134,7 @@ pub fn show_assistant_window(window: &WebviewWindow) -> Result<(), String> {
 }
 
 pub fn wake_from_voice(app: &AppHandle) {
+    crate::tts::stop(app);
     let app = app.clone();
     if let Err(error) = app.clone().run_on_main_thread(move || {
         let Some(main) = app.get_webview_window("main") else {
@@ -182,6 +184,7 @@ pub fn is_assistant_visible(app: &AppHandle) -> bool {
 }
 
 pub fn hide_assistant_window(app: &AppHandle) -> Result<(), String> {
+    crate::tts::stop(app);
     if let Err(error) = audio::cancel_voice_session(&app.state::<audio::AudioService>()) {
         eprintln!("Could not reset the voice session while hiding the assistant: {error}");
     }

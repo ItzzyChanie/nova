@@ -2300,7 +2300,7 @@ dependencies = [
 
 [[package]]
 name = "nova"
-version = "0.1.0"
+version = "1.0.1"
 dependencies = [
  "cpal",
  "serde",
@@ -2311,6 +2311,7 @@ dependencies = [
  "tauri-plugin-autostart",
  "tauri-plugin-global-shortcut",
  "tauri-plugin-store",
+ "url",
  "windows 0.54.0",
  "windows-sys 0.61.2",
  "winreg 0.55.0",

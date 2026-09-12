@@ -60,8 +60,20 @@ impl FileToolError {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ProjectRecord {
+    #[serde(default)]
+    pub voice_enabled: bool,
+    #[serde(default)]
+    pub frontend_command: String,
+    #[serde(default)]
+    pub backend_command: String,
+    #[serde(default)]
+    pub working_directory: String,
+    #[serde(default)]
+    pub development_url: String,
+    #[serde(default)]
+    pub notes: String,
     pub id: String,
     pub name: String,
     pub path: String,
@@ -169,10 +181,10 @@ fn projects(app: &AppHandle) -> Result<Vec<ProjectRecord>, FileToolError> {
             format!("Could not open project settings: {error}"),
         )
     })?;
-    let mut records: Vec<ProjectRecord> = store
-        .get(PROJECTS_KEY)
-        .and_then(|value| serde_json::from_value(value).ok())
-        .unwrap_or_default();
+    let mut records: Vec<ProjectRecord> = match store.get(PROJECTS_KEY) {
+        None => Vec::new(),
+        Some(value) => serde_json::from_value(value).map_err(|e| FileToolError::new(FileToolErrorCode::InvalidProject, format!("Project data is invalid: {e}")))?,
+    };
     for record in &mut records {
         record.path = display_path(Path::new(&record.path));
     }
@@ -644,6 +656,8 @@ pub fn add_project(
         return Err("A project with that name or path is already registered.".into());
     }
     records.push(ProjectRecord {
+        voice_enabled: false,
+        frontend_command: String::new(), backend_command: String::new(), working_directory: String::new(), development_url: String::new(), notes: String::new(),
         id: project_id(&canonical),
         name: name.trim().to_string(),
         path: display_path(&canonical),
@@ -730,3 +744,5 @@ mod tests {
         ));
     }
 }
+
+pub fn clear_cached_results() { if let Some(cache) = SEARCH_RESULTS.get() { if let Ok(mut cache) = cache.lock() { cache.clear(); } } }

@@ -14,10 +14,13 @@
 * {
   box-sizing: border-box;
 }
-body {
+html, body, #root {
   margin: 0;
-  min-width: 480px;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
 }
+body { min-width: 0; }
 button, select {
   font: inherit;
 }
@@ -162,8 +165,11 @@ button:focus-visible, a:focus-visible, select:focus-visible, #page-title:focus-v
 .version {
   color: var(--text-muted);
 }
-main {
+#main-content {
+  position: relative;
+  min-height: 0;
   min-width: 0;
+  overflow-x: hidden;
   overflow-y: auto;
   scrollbar-color: var(--border) var(--bg-app);
 }
@@ -838,7 +844,7 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 5px; fon
   .hero-bottom { flex-wrap: wrap; }
 }
 
-.app-shell { flex-direction: column; margin: 0; height: 100dvh; border-radius: 12px; }
+.app-shell { flex-direction: column; margin: 0; height: 100%; border-radius: 12px; }
 .title-bar { display: flex; align-items: center; flex-shrink: 0; height: 36px; padding-left: 18px; background: var(--bg-app); border-bottom: 1px solid var(--border-subtle); user-select: none; }
 .title-drag { flex: 1; align-self: stretch; display: flex; align-items: center; font-size: 10px; font-weight: 600; letter-spacing: .15em; color: var(--text-muted); }
 .window-controls { display: flex; align-self: stretch; gap: 3px; padding: 4px 6px; }
@@ -853,3 +859,29 @@ kbd { padding: 2px 6px; border: 1px solid var(--border); border-radius: 5px; fon
 .confirm-dialog h2 { font-size: 19px; margin-bottom: 12px; }
 .confirm-dialog > p { color: var(--text-secondary); font-size: 13px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; }
+
+/* Local developer profiles use NOVA's existing compact palette. */
+.profile-list { display: grid; gap: 12px; margin-top: 16px; }
+.profile-panel { padding: 16px; display: grid; gap: 12px; margin-top: 12px; }
+.profile-heading { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+.profile-fields { border: 0; margin: 0; padding: 0; display: grid; gap: 12px; min-width: 0; }
+.profile-fields input:not([type=checkbox]), .profile-fields textarea { width: 100%; min-width: 0; border: 1px solid var(--border); background: var(--bg-app); color: var(--text-primary); border-radius: 5px; padding: 8px 10px; font: 12px var(--font-mono); }
+.profile-fields textarea { min-height: 70px; resize: vertical; }
+.check-label { display: flex; align-items: flex-start; gap: 8px; color: var(--text-secondary); }
+.check-label input { accent-color: var(--accent-orange); }
+.wrap-text { overflow-wrap: anywhere; }
+.workflow-steps { display: grid; gap: 14px; padding-left: 22px; }
+.workflow-steps li { padding: 10px; border: 1px solid var(--border-subtle); border-radius: 6px; }
+.workflow-steps .field-label { margin-bottom: 8px; }
+input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent-orange); outline-offset: 2px; }
+button:disabled { cursor: not-allowed; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
+
+/* Keep all navigation visible in the restored window and on laptop displays. */
+@media (max-height: 820px) {
+  .sidebar { padding: 16px 12px 12px; }
+  .brand { padding-bottom: 14px; }
+  .sidebar nav { gap: 2px; margin-bottom: 14px; }
+  .nav-item { min-height: 34px; padding: 5px 8px; }
+  .nav-icon { width: 26px; height: 26px; }
+}

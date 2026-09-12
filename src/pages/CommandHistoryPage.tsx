@@ -91,7 +91,7 @@ export function CommandHistoryPage() {
               </div>
               <p className="technical">
                 {entry.tool} &middot;{" "}
-                {new Date(entry.timestamp).toLocaleTimeString()}
+                {new Date(entry.timestamp).toLocaleTimeString()} &middot; {entry.inputSource || "typed"} &middot; {entry.durationMillis ?? 0} ms
               </p>
               <p>{entry.error ?? entry.result}</p>
             </article>

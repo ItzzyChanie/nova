@@ -31,8 +31,8 @@ body {
 .assistant-panel {
   position: relative;
   isolation: isolate;
-  min-height: 144px;
-  padding: 14px 18px;
+  min-height: 180px;
+  padding: 20px 22px;
   border-radius: 16px;
   background: var(--bg-app);
   overflow: hidden;
@@ -161,8 +161,8 @@ body {
 }
 .voice-orb {
   position: relative;
-  width: 56px;
-  height: 56px;
+  width: 68px;
+  height: 68px;
   flex-shrink: 0;
   display: grid;
   place-items: center;
@@ -186,8 +186,8 @@ body {
 .voice-core {
   display: grid;
   place-items: center;
-  width: 48px;
-  height: 48px;
+  width: 58px;
+  height: 58px;
   border: 1px solid var(--border);
   border-radius: 50%;
   color: var(--accent-mint);
@@ -273,4 +273,14 @@ body {
 .response-pages button:focus-visible {
   outline: 2px solid var(--accent-orange);
   outline-offset: 2px;
+}
+
+/* The orb remains animated while listening; bars still respond to real input. */
+.assistant-panel[data-state="listening"] .voice-orb::before,
+.assistant-panel[data-processing="true"] .voice-orb::before {
+  opacity: 1;
+  animation: voice-ring 3s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .assistant-panel .voice-orb::before { animation: none; }
 }

@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 
 use crate::{
     application_control, command_history, file_control, settings, system_control, window_control,
@@ -39,6 +39,21 @@ pub enum ToolPermission {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum ToolName {
+    #[serde(rename = "developer.open_project")]
+    DeveloperOpenProject,
+    #[serde(rename = "developer.start_project")]
+    DeveloperStartProject,
+    #[serde(rename = "developer.stop_project")]
+    DeveloperStopProject,
+    #[serde(rename = "developer.open_editor")]
+    DeveloperOpenEditor,
+    #[serde(rename = "developer.open_dev_url")]
+    DeveloperOpenDevUrl,
+    #[serde(rename = "workflow.run")]
+    WorkflowRun,
+    #[serde(rename = "browser.open_url")]
+    BrowserOpenUrl,
+
     #[serde(rename = "application.open")]
     ApplicationOpen,
     #[serde(rename = "application.close")]
@@ -100,6 +115,13 @@ impl FromStr for ToolName {
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         match value {
+            "developer.open_project" => Ok(Self::DeveloperOpenProject),
+            "developer.start_project" => Ok(Self::DeveloperStartProject),
+            "developer.stop_project" => Ok(Self::DeveloperStopProject),
+            "developer.open_editor" => Ok(Self::DeveloperOpenEditor),
+            "developer.open_dev_url" => Ok(Self::DeveloperOpenDevUrl),
+            "workflow.run" => Ok(Self::WorkflowRun),
+            "browser.open_url" => Ok(Self::BrowserOpenUrl),
             "application.open" => Ok(Self::ApplicationOpen),
             "application.close" => Ok(Self::ApplicationClose),
             "application.focus" => Ok(Self::ApplicationFocus),
@@ -308,6 +330,18 @@ impl ToolName {
                 permission: ToolPermission::Confirm,
                 required_skill: Some(SkillId::Windows),
             },
+            Self::DeveloperOpenProject | Self::DeveloperStartProject | Self::DeveloperStopProject | Self::DeveloperOpenEditor | Self::DeveloperOpenDevUrl => ToolPolicy {
+                category: ToolCategory::Developer, risk: ToolRiskLevel::Sensitive,
+                permission: ToolPermission::Confirm, required_skill: Some(SkillId::Scripts),
+            },
+            Self::WorkflowRun => ToolPolicy {
+                category: ToolCategory::Workflow, risk: ToolRiskLevel::Sensitive,
+                permission: ToolPermission::Confirm, required_skill: None,
+            },
+            Self::BrowserOpenUrl => ToolPolicy {
+                category: ToolCategory::Browser, risk: ToolRiskLevel::Sensitive,
+                permission: ToolPermission::Confirm, required_skill: Some(SkillId::Web),
+            },
             Self::DeveloperRunScript => ToolPolicy {
                 category: ToolCategory::Developer,
                 risk: ToolRiskLevel::Destructive,
@@ -335,6 +369,8 @@ pub struct ToolRequest {
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(tag = "kind", content = "value", rename_all = "camelCase")]
 pub enum ToolArguments {
+    RegisteredTarget(RegisteredTargetArguments),
+    BrowserOpenUrl(UrlArguments),
     ApplicationOpen(ApplicationTargetArguments),
     ApplicationClose(ApplicationTargetArguments),
     ApplicationFocus(ApplicationTargetArguments),
@@ -364,6 +400,12 @@ pub enum ToolArguments {
     WorkflowPreview(WorkflowPreviewArguments),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RegisteredTargetArguments { pub name: String }
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UrlArguments { pub url: String }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ApplicationTargetArguments {
@@ -660,6 +702,16 @@ fn decode_arguments(tool: ToolName, value: Value) -> Result<ToolArguments, Strin
             required_text(&arguments.script_id, "scriptId")?;
             Ok(ToolArguments::DeveloperRunScript(arguments))
         }
+        ToolName::DeveloperOpenProject | ToolName::DeveloperStartProject | ToolName::DeveloperStopProject | ToolName::DeveloperOpenEditor | ToolName::DeveloperOpenDevUrl | ToolName::WorkflowRun => {
+            let arguments: RegisteredTargetArguments = serde_json::from_value(value).map_err(invalid)?;
+            required_text(&arguments.name, "name")?;
+            Ok(ToolArguments::RegisteredTarget(arguments))
+        }
+        ToolName::BrowserOpenUrl => {
+            let arguments: UrlArguments = serde_json::from_value(value).map_err(invalid)?;
+            crate::developer::web_url(&arguments.url)?;
+            Ok(ToolArguments::BrowserOpenUrl(arguments))
+        }
         ToolName::WorkflowPreview => {
             let arguments: WorkflowPreviewArguments =
                 serde_json::from_value(value).map_err(invalid)?;
@@ -851,6 +903,13 @@ pub(crate) fn preflight(
 impl ToolName {
     pub fn as_str(self) -> &'static str {
         match self {
+            Self::DeveloperOpenProject => "developer.open_project",
+            Self::DeveloperStartProject => "developer.start_project",
+            Self::DeveloperStopProject => "developer.stop_project",
+            Self::DeveloperOpenEditor => "developer.open_editor",
+            Self::DeveloperOpenDevUrl => "developer.open_dev_url",
+            Self::WorkflowRun => "workflow.run",
+            Self::BrowserOpenUrl => "browser.open_url",
             Self::ApplicationOpen => "application.open",
             Self::ApplicationClose => "application.close",
             Self::ApplicationFocus => "application.focus",
@@ -1215,12 +1274,12 @@ fn execute_allowed(request: ToolRequest, policy: ToolPolicy) -> ToolResult {
     }
 }
 
-fn record_application_result(app: &AppHandle, request: &ToolRequest, result: &ToolResult) {
+fn record_application_result(app: &AppHandle, request: &ToolRequest, result: &ToolResult, duration: u64) {
     if request.tool.policy().category != ToolCategory::Application {
         return;
     }
     if let Err(error) =
-        command_history::record(app, request.tool.as_str(), display_command(request), result)
+        command_history::record_duration(app, request.tool.as_str(), display_command(request), result, duration)
     {
         eprintln!("Could not record NOVA command history: {error}");
     }
@@ -1232,6 +1291,7 @@ pub fn execute_confirmed_application_tool(
     request: Value,
     confirmed: bool,
 ) -> ToolResult {
+    let started = std::time::Instant::now();
     let parsed = match parse_request(request) {
         Ok(request) => request,
         Err(result) => return result,
@@ -1305,7 +1365,7 @@ pub fn execute_confirmed_application_tool(
             execute_application(parsed.clone(), effective_policy)
         }
     };
-    record_application_result(&app, &parsed, &result);
+    record_application_result(&app, &parsed, &result, started.elapsed().as_millis() as u64);
     result
 }
 
@@ -1322,6 +1382,7 @@ fn is_supported_file_tool(tool: ToolName) -> bool {
 
 #[tauri::command]
 pub fn execute_confirmed_file_tool(app: AppHandle, request: Value, confirmed: bool) -> ToolResult {
+    let started = std::time::Instant::now();
     let parsed = match parse_request(request) {
         Ok(request) => request,
         Err(result) => return result,
@@ -1395,11 +1456,12 @@ pub fn execute_confirmed_file_tool(app: AppHandle, request: Value, confirmed: bo
         }
     };
 
-    if let Err(error) = command_history::record(
+    if let Err(error) = command_history::record_duration(
         &app,
         parsed.tool.as_str(),
         display_command(&parsed),
         &result,
+        started.elapsed().as_millis() as u64,
     ) {
         eprintln!("Could not record NOVA command history: {error}");
     }
@@ -1429,6 +1491,7 @@ pub fn execute_confirmed_system_tool(
     request: Value,
     confirmed: bool,
 ) -> ToolResult {
+    let started = std::time::Instant::now();
     let parsed = match parse_request(request) {
         Ok(request) => request,
         Err(result) => return result,
@@ -1511,11 +1574,12 @@ pub fn execute_confirmed_system_tool(
         },
     };
 
-    if let Err(error) = command_history::record(
+    if let Err(error) = command_history::record_duration(
         &app,
         parsed.tool.as_str(),
         display_command(&parsed),
         &result,
+        started.elapsed().as_millis() as u64,
     ) {
         eprintln!("Could not record NOVA command history: {error}");
     }
@@ -1710,5 +1774,65 @@ mod tests {
         assert_eq!(result.status, ToolResultStatus::Completed);
         assert_eq!(result.permission, Some(ToolPermission::Allowed));
         assert_eq!(result.data, Some(json!({ "stepCount": 2 })));
+    }
+}
+
+
+pub(crate) enum RegisteredOrigin { DashboardConfirmed, Voice, ApprovedWorkflow }
+// Only the saved-workflow runner may call this; each step has been saved by the user.
+pub fn execute_workflow_step(app: AppHandle, request: Value) -> ToolResult {
+    match request.get("tool").and_then(Value::as_str).unwrap_or("") {
+        tool if tool.starts_with("application.") => execute_confirmed_application_tool(app,request,true),
+        tool if tool.starts_with("file.") || tool.starts_with("folder.") => execute_confirmed_file_tool(app,request,true),
+        tool if tool.starts_with("system.") || tool.starts_with("window.") => execute_confirmed_system_tool(app,request,true),
+        _ => execute_registered(&app,request,RegisteredOrigin::ApprovedWorkflow),
+    }
+}
+pub(crate) fn execute_registered(app: &AppHandle, request: Value, origin: RegisteredOrigin) -> ToolResult {
+    let parsed = match parse_request(request.clone()) { Ok(p) => p, Err(r) => return r };
+    let preferences = match settings::skill_preferences(app) { Ok(p) => p, Err(e) => return error_result(parsed.request_id,Some(parsed.tool),Some(parsed.tool.policy()),ToolResultStatus::Rejected,ToolErrorCode::SettingsUnavailable,e) };
+    let checked = preflight(request.clone(), &preferences, settings::nova_enabled(app).unwrap_or(false));
+    if checked.status != ToolResultStatus::ConfirmationRequired { return checked; }
+    // This check is in the execution boundary, not merely in a caller or the UI.
+    if matches!(origin, RegisteredOrigin::Voice) && !crate::developer::voice_execution_approved(app, &request) {
+        return error_result(parsed.request_id,Some(parsed.tool),Some(parsed.tool.policy()),ToolResultStatus::ConfirmationRequired,ToolErrorCode::ConfirmationRequired,"Approve this saved profile or workflow for voice execution in the dashboard first.");
+    }
+    let started = std::time::Instant::now();
+    let execution = match &parsed.arguments {
+        ToolArguments::RegisteredTarget(args) if parsed.tool == ToolName::WorkflowRun => crate::developer::run_workflow(app,&args.name),
+        ToolArguments::RegisteredTarget(args) => crate::developer::project_action(app,parsed.tool.as_str(),&args.name),
+        ToolArguments::BrowserOpenUrl(args) => crate::developer::open_url(app,&args.url),
+        _ => Err("Only registered project, workflow and URL actions are accepted.".into()),
+    };
+    let result = match execution {
+        Ok(data) => ToolResult { data:Some(data), error:None, status:ToolResultStatus::Completed, ..checked },
+        Err(message) => error_result(parsed.request_id.clone(),Some(parsed.tool),Some(parsed.tool.policy()),ToolResultStatus::Rejected,ToolErrorCode::InvalidArguments,message),
+    };
+    let _ = command_history::record_duration(app,parsed.tool.as_str(),format!("{} {}",parsed.tool.as_str(),match &parsed.arguments { ToolArguments::RegisteredTarget(a)=>a.name.as_str(), ToolArguments::BrowserOpenUrl(a)=>a.url.as_str(), _=>"" }),&result,started.elapsed().as_millis() as u64);
+    result
+}
+#[tauri::command]
+pub async fn execute_registered_tool(window: tauri::WebviewWindow, request: Value, confirmed: bool) -> ToolResult {
+    if window.label() != "main" || !confirmed { return error_result(None,None,None,ToolResultStatus::ConfirmationRequired,ToolErrorCode::ConfirmationRequired,"Confirm registered actions in the dashboard."); }
+    let app = window.app_handle().clone();
+    tauri::async_runtime::spawn_blocking(move || execute_registered(&app,request,RegisteredOrigin::DashboardConfirmed)).await.unwrap_or_else(|e| {
+        error_result(None,None,None,ToolResultStatus::Rejected,ToolErrorCode::InvalidArguments,format!("Registered action failed: {e}"))
+    })
+}
+
+
+#[cfg(test)] mod project_security_tests {
+    use super::*;
+    #[test] fn registered_actions_require_skill_and_confirmation() {
+        let request=json!({"tool":"developer.start_project","arguments":{"name":"ProctorX"}});
+        assert_eq!(route(request.clone(),&SkillPreferences::default(),true).status,ToolResultStatus::Denied);
+        let mut preferences=SkillPreferences::default();preferences.scripts=true;
+        assert_eq!(route(request.clone(),&preferences,true).status,ToolResultStatus::ConfirmationRequired);
+        assert_eq!(route(request,&preferences,false).status,ToolResultStatus::Denied);
+    }
+    #[test] fn model_cannot_supply_commands_or_voice_approval() {
+        for arguments in [json!({"name":"ProctorX","command":"npm run dev"}),json!({"name":"ProctorX","voiceEnabled":true}),json!({"name":"ProctorX","path":"C:/evil"})] {
+            assert!(validate_model_request(json!({"tool":"developer.start_project","arguments":arguments})).is_err());
+        }
     }
 }

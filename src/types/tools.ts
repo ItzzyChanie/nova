@@ -27,6 +27,13 @@ export interface FileTargetArguments {
 }
 
 export interface ToolArgumentMap {
+  "developer.open_project": { name: string };
+  "developer.start_project": { name: string };
+  "developer.stop_project": { name: string };
+  "developer.open_editor": { name: string };
+  "developer.open_dev_url": { name: string };
+  "workflow.run": { name: string };
+  "browser.open_url": { url: string };
   "application.open": { application: string };
   "application.close": { application: string };
   "application.focus": { application: string };

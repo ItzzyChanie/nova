@@ -52,6 +52,9 @@ export async function interpretNaturalLanguage(
 export async function executeConfirmedNaturalRequest(
   request: ToolRequest,
 ): Promise<ToolResult> {
+  if (request.tool.startsWith("developer.") || request.tool === "workflow.run" || request.tool === "browser.open_url") {
+    return invoke<ToolResult>("execute_registered_tool", { request, confirmed: true });
+  }
   if (request.tool.startsWith("application.")) {
     return executeConfirmedApplicationTool(request as ApplicationToolRequest);
   }

@@ -178,6 +178,7 @@ enum AudioCommand {
         result: Result<crate::speech::SpeechTranscription, SpeechError>,
     },
     BeginFollowup {
+        speech_generation: Option<u64>,
         reply: mpsc::Sender<Result<(), String>>,
     },
     CancelVoiceSession {
@@ -1215,7 +1216,7 @@ fn audio_worker(
                                 Ok(capture) => {
                                     command_capture = Some(capture);
                                     followup_capture = true;
-                                    crate::assistant::update_voice_state(&configuration.app, "listening", None, None);
+                                    crate::assistant::update_voice_state(&configuration.app, "listening", None, Some("I didn't catch that. Please repeat a short command.".into()));
                                 }
                                 Err(message) => crate::assistant::update_voice_state(&configuration.app, "error", None, Some(message)),
                             }
@@ -1242,8 +1243,11 @@ fn audio_worker(
                     &wake_snapshot,
                 );
             }
-            AudioCommand::BeginFollowup { reply } => {
+            AudioCommand::BeginFollowup { reply, speech_generation } => {
                 let result = match desired_wake.as_ref() {
+                    Some(configuration) if speech_generation.is_some_and(|generation| !configuration.app.state::<crate::tts::TtsService>().current(generation)) => {
+                        Err("The voice reply was interrupted.".into())
+                    }
                     Some(configuration) if !configuration.enabled => {
                         Err("NOVA is disabled.".to_string())
                     }
@@ -1427,10 +1431,16 @@ pub fn synchronize_wake_engine(
         .map_err(|_| "The local wake engine did not return a status.".to_string())?)
 }
 
-pub fn begin_followup_capture(service: &AudioService) -> Result<(), String> {
+pub fn begin_followup_capture(
+    service: &AudioService,
+    speech_generation: Option<u64>,
+) -> Result<(), String> {
     let (reply_tx, reply_rx) = mpsc::channel();
     audio_sender(service)?
-        .send(AudioCommand::BeginFollowup { reply: reply_tx })
+        .send(AudioCommand::BeginFollowup {
+            reply: reply_tx,
+            speech_generation,
+        })
         .map_err(|_| "The local audio service stopped unexpectedly.".to_string())?;
     reply_rx
         .recv()

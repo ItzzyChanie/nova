@@ -58,6 +58,12 @@ fn with_fresh_context<T>(operation: impl FnOnce(&mut ConversationContext) -> T) 
 }
 
 const SUPPORTED_TOOLS: &[&str] = &[
+    "developer.open_project",
+    "developer.start_project",
+    "developer.stop_project",
+    "developer.open_editor",
+    "developer.open_dev_url",
+    "workflow.run",
     "application.open",
     "application.close",
     "application.focus",
@@ -240,9 +246,12 @@ fn model_info_at(address: &str) -> LocalModelInfo {
         entry.name.as_deref() == Some(LOCAL_MODEL) || entry.model.as_deref() == Some(LOCAL_MODEL)
     });
     if available {
+        let loaded = http_request_at(address,"GET","/api/ps",None,Duration::from_secs(2))
+            .ok().and_then(|bytes|serde_json::from_slice::<OllamaTagsResponse>(&bytes).ok())
+            .is_some_and(|response|response.models.iter().any(|entry|entry.name.as_deref()==Some(LOCAL_MODEL) || entry.model.as_deref()==Some(LOCAL_MODEL)));
         base(
-            LocalModelStatus::Loaded,
-            "The configured model is installed locally and ready.".into(),
+            if loaded { LocalModelStatus::Loaded } else { LocalModelStatus::NotLoaded },
+            if loaded { "The configured model is loaded locally." } else { "The configured model is installed; it will load on demand." }.into(),
         )
     } else {
         base(
@@ -508,8 +517,38 @@ fn file_query_after_action(value: &str, actions: &[&str]) -> Option<String> {
     (!query.is_empty()).then_some(query)
 }
 
+// Only complete, bounded assistant-control phrases may bypass tool planning.
+// Do not fuzzy-match arbitrary targets or infer a missing action from "NOVA".
+fn assistant_control(value: &str) -> Option<DeterministicDecision> {
+    let mut phrase = value.trim();
+    for prefix in ["can you ", "could you ", "would you ", "will you "] {
+        if let Some(rest) = phrase.strip_prefix(prefix) { phrase = rest; break; }
+    }
+    let words = phrase.split_whitespace().filter(|w| *w != "the").collect::<Vec<_>>();
+    let phrase = words.join(" ");
+    let phrase = phrase.replace("no va", "nova");
+    if matches!(phrase.as_str(), "turn off" | "turn of" | "switch off" | "turn off nova" | "turn of nova" | "turn nova off" | "switch off nova" | "disable nova" | "nova off" | "nova of") {
+        return Some(DeterministicDecision::DisableNova);
+    }
+    let words = phrase.split_whitespace().collect::<Vec<_>>();
+    if words.len() == 2
+        && matches!(words[0], "close" | "cloze" | "clows" | "clothes" | "dismiss" | "hide")
+        && matches!(words[1], "nova" | "nover" | "assistant") {
+        return Some(DeterministicDecision::HideAssistant);
+    }
+    if matches!(phrase.as_str(), "nova" | "hey nova" | "close" | "cloze" | "turn" | "off") {
+        return Some(DeterministicDecision::Unsupported("I didn't catch the full command. Please say Close NOVA or Turn off.".into()));
+    }
+    None
+}
+
 fn deterministic_request(input: &str) -> DeterministicDecision {
     let value = normalize_transcript(input);
+    // Never let substring matching reverse a negated instruction.
+    if value.split_whitespace().any(|word| matches!(word, "not" | "never" | "don" | "dont")) {
+        return DeterministicDecision::Unsupported("I won't act on that negative instruction. Please state the action you want.".into());
+    }
+    if let Some(control) = assistant_control(&value) { return control; }
     if contains_any(
         &value,
         &[
@@ -523,26 +562,6 @@ fn deterministic_request(input: &str) -> DeterministicDecision {
         ],
     ) {
         return DeterministicDecision::EnableNova;
-    }
-    if contains_any(
-        &value,
-        &[
-            "turn off nova",
-            "turn nova off",
-            "turn of nova",
-            "nova off",
-            "nova of",
-            "disable nova",
-            "switch off nova",
-        ],
-    ) {
-        return DeterministicDecision::DisableNova;
-    }
-    if contains_any(
-        &value,
-        &["close nova", "dismiss nova", "hide nova", "close assistant"],
-    ) {
-        return DeterministicDecision::HideAssistant;
     }
     if contains_any(
         &value,
@@ -786,21 +805,7 @@ enum DeterministicDecision {
 }
 
 fn registered_project_request(app: &AppHandle, input: &str) -> Option<Value> {
-    let value = normalize_transcript(input);
-    if !contains_any(&value, &["open ", "launch ", "start ", "go to "]) {
-        return None;
-    }
-    let padded = format!(" {value} ");
-    file_control::list_projects(app)
-        .ok()?
-        .into_iter()
-        .filter_map(|project| {
-            let normalized_name = normalize(&project.name);
-            (!normalized_name.is_empty() && padded.contains(&format!(" {normalized_name} ")))
-                .then_some(project.name)
-        })
-        .next()
-        .map(|folder| tool_request("folder.open", json!({ "folder": folder })))
+    crate::developer::match_request(&normalize_transcript(input), &file_control::list_projects(app).ok()?, &crate::developer::workflows(app).ok()?)
 }
 
 fn model_schema() -> Value {
@@ -816,6 +821,7 @@ fn model_schema() -> Value {
             "arguments": {
                 "type": "object",
                 "properties": {
+                    "name": { "type": "string", "minLength": 1, "maxLength": 100 },
                     "application": { "type": "string", "minLength": 1, "maxLength": 120 },
                     "folder": { "type": "string", "minLength": 1, "maxLength": 260 },
                     "query": { "type": "string", "minLength": 1, "maxLength": 160 },
@@ -890,7 +896,7 @@ fn conversational_model_prompt(projects: &[file_control::ProjectRecord]) -> Stri
         .to_string()
     });
     format!(
-        "You are NOVA's local conversational intent planner. The user speaks naturally; grammar may be imperfect, Filipino-accented English is normal, minor speech-recognition errors may appear, and basic Taglish may appear. Understand paraphrases, corrections, indirect wording, and bounded follow-up references from the whole utterance. Preserve the requested action and target. Prefer a known local entity only when evidence is strong. Ask a concise clarification when ambiguity materially changes an action, especially close or sensitive actions. Return only the supplied JSON schema. Never invent tools. Never output shell, PowerShell, cmd, scripts, code, or raw filesystem operations. Tool arguments must be direct fields, not nested arguments. Use clarification with tool none when a required target is missing or ambiguous, and unsupported with tool none for unavailable or unsafe requests. For a compound request use sequence with tool none and 2-4 ordered steps. Allowed tools and their exact arguments: application.open, close, focus, is_running use application string; application.list_running uses no arguments; folder.open uses folder string; folder.find and file.find_by_name use query with optional root, extension, exact, modifiedWithinDays; volume set uses volume 0-100; volume adjust uses nonzero delta -100 to 100; mute, unmute, volume query, battery, CPU, memory, screenshot, and window list use no arguments; window focus uses title and optional exact. Known applications: {applications:?}. Known projects: {projects:?}. Bounded recent local context: {context}."
+        "You are NOVA's local conversational intent planner. The user speaks naturally; grammar may be imperfect, Filipino-accented English is normal, minor speech-recognition errors may appear, and basic Taglish may appear. Understand paraphrases, corrections, indirect wording, and bounded follow-up references from the whole utterance. Preserve the requested action and target. Prefer a known local entity only when evidence is strong. Ask a concise clarification when ambiguity materially changes an action, especially close or sensitive actions. Return only the supplied JSON schema. Never invent tools. Never output shell, PowerShell, cmd, scripts, code, or raw filesystem operations. Tool arguments must be direct fields, not nested arguments. Use clarification with tool none when a required target is missing or ambiguous, and unsupported with tool none for unavailable or unsafe requests. For a compound request use sequence with tool none and 2-4 ordered steps. Allowed tools and their exact arguments: developer.open_project, developer.start_project, developer.stop_project, developer.open_editor and developer.open_dev_url use name string for a known saved project; workflow.run uses name string for a saved workflow. These tools never accept commands or paths. application.open, close, focus, is_running use application string; application.list_running uses no arguments; folder.open uses folder string; folder.find and file.find_by_name use query with optional root, extension, exact, modifiedWithinDays; volume set uses volume 0-100; volume adjust uses nonzero delta -100 to 100; mute, unmute, volume query, battery, CPU, memory, screenshot, and window list use no arguments; window focus uses title and optional exact. Known applications: {applications:?}. Known projects: {projects:?}. Bounded recent local context: {context}."
     )
 }
 
@@ -903,7 +909,7 @@ fn ollama_output_at(
         "model": LOCAL_MODEL,
         "stream": false,
         "think": false,
-        "keep_alive": "5m",
+        "keep_alive": "30s",
         "format": model_schema(),
         "options": { "temperature": 0, "seed": 42, "num_ctx": 2048, "num_predict": 128 },
         "messages": [
@@ -924,7 +930,7 @@ fn ollama_output_at(
         "POST",
         "/api/chat",
         Some(&encoded),
-        Duration::from_secs(75),
+        Duration::from_secs(8),
     )?;
     let response: OllamaChatResponse = serde_json::from_slice(&response)
         .map_err(|error| format!("Ollama returned an invalid response envelope: {error}"))?;
@@ -1417,7 +1423,7 @@ fn interpret_at(app: &AppHandle, input: &str, address: &str) -> NaturalCommandRe
                 input,
                 None,
                 format!(
-                "The local model is unavailable. Deterministic/manual tools still work. {error}"
+                "I couldn't understand that command in time. Please repeat it with the action and target. Manual tools still work. ({error})"
             ),
                 Vec::new(),
                 started,
@@ -1517,11 +1523,24 @@ fn http_request_at(
         .write_all(request.as_bytes())
         .and_then(|_| stream.write_all(body))
         .map_err(|error| format!("Could not send the local-model request: {error}"))?;
+    // Bound the whole response, not each individual read: trickling bytes
+    // must not extend an unclear command indefinitely.
+    let deadline = Instant::now() + timeout;
     let mut bytes = Vec::new();
-    stream
-        .take(MAX_HTTP_BYTES)
-        .read_to_end(&mut bytes)
-        .map_err(|error| format!("Could not read the local-model response: {error}"))?;
+    let mut chunk = [0u8; 8192];
+    loop {
+        let remaining = deadline.checked_duration_since(Instant::now())
+            .filter(|duration| !duration.is_zero())
+            .ok_or("Local understanding timed out. Please repeat a short command.")?;
+        stream.set_read_timeout(Some(remaining)).map_err(|error| error.to_string())?;
+        let count = stream.read(&mut chunk)
+            .map_err(|error| format!("Could not read the local-model response: {error}"))?;
+        if count == 0 { break; }
+        if bytes.len() as u64 + count as u64 > MAX_HTTP_BYTES {
+            return Err("The local-model response exceeded its size limit.".into());
+        }
+        bytes.extend_from_slice(&chunk[..count]);
+    }
     let header_end = bytes
         .windows(4)
         .position(|window| window == b"\r\n\r\n")
@@ -1590,7 +1609,14 @@ pub async fn get_local_model_info() -> LocalModelInfo {
 #[tauri::command]
 pub async fn interpret_natural_language(app: AppHandle, input: String) -> NaturalCommandResult {
     let fallback_input = input.clone();
-    tauri::async_runtime::spawn_blocking(move || interpret_at(&app, &input, OLLAMA_ADDRESS))
+    tauri::async_runtime::spawn_blocking(move || {
+        let started = Instant::now();
+        let suppress = command_history::SuppressHistory::new();
+        let result = interpret_at(&app, &input, OLLAMA_ADDRESS);
+        drop(suppress);
+        command_history::record_natural(&app,&result,started.elapsed().as_millis() as u64,"typed");
+        result
+    })
         .await
         .unwrap_or_else(|error| {
             NaturalCommandResult::terminal(
@@ -1654,6 +1680,13 @@ fn execute_safe_voice_confirmation(app: &AppHandle, result: &mut NaturalCommandR
     let Some(request) = result.request.as_ref() else {
         return;
     };
+    if waiting && request.get("tool").and_then(Value::as_str).is_some_and(|t| t.starts_with("developer.") || t == "workflow.run") {
+        let routing = tool_router::execute_registered(app, request.clone(), tool_router::RegisteredOrigin::Voice);
+        result.message = routing.error.as_ref().map(|e|e.message.clone()).or_else(||routing.data.as_ref()?.get("message")?.as_str().map(str::to_owned)).unwrap_or("Registered action finished.".into());
+        result.status = if routing.status == ToolResultStatus::Completed { NaturalCommandStatus::Ready } else if routing.status == ToolResultStatus::ConfirmationRequired { NaturalCommandStatus::ClarificationRequired } else { NaturalCommandStatus::Rejected };
+        result.routing = Some(routing);
+        return;
+    }
     if !waiting || !voice_request_is_auto_confirmable(request) {
         return;
     }
@@ -1801,6 +1834,7 @@ fn execute_safe_voice_confirmation(app: &AppHandle, result: &mut NaturalCommandR
     result.routing = Some(routing);
 }
 pub fn process_voice_command(app: AppHandle, input: String) {
+    let speech_generation = app.state::<crate::tts::TtsService>().generation();
     if let Err(error) = std::thread::Builder::new()
         .name("nova-natural-command".into())
         .spawn(move || {
@@ -1810,6 +1844,8 @@ pub fn process_voice_command(app: AppHandle, input: String) {
                 Some(format!("Heard: “{input}”")),
                 None,
             );
+            let command_started = Instant::now();
+            let history_suppression = command_history::SuppressHistory::new();
             let mut result = interpret_at(&app, &input, OLLAMA_ADDRESS);
             if result
                 .routing
@@ -1827,7 +1863,32 @@ pub fn process_voice_command(app: AppHandle, input: String) {
                     None,
                 );
             }
+            if !app.state::<crate::tts::TtsService>().current(speech_generation) {
+                return;
+            }
             execute_safe_voice_confirmation(&app, &mut result);
+            drop(history_suppression);
+            command_history::record_natural(&app,&result,command_started.elapsed().as_millis() as u64,"spoken");
+            if !app.state::<crate::tts::TtsService>().current(speech_generation) {
+                return;
+            }
+            // Publish text first; speech failure leaves it intact. KWS stays active while speaking.
+            let response_state = if matches!(
+                result.status,
+                NaturalCommandStatus::Ready | NaturalCommandStatus::ClarificationRequired
+            ) { "processing" } else { "error" };
+            if !matches!(
+                result.status,
+                NaturalCommandStatus::AssistantHidden
+                    | NaturalCommandStatus::NovaDisabled
+                    | NaturalCommandStatus::NovaEnabled
+            ) {
+                assistant::update_voice_state(&app, response_state, Some(result.message.clone()), None);
+                crate::tts::reply(&app, speech_generation, &result);
+            }
+            if !app.state::<crate::tts::TtsService>().current(speech_generation) {
+                return;
+            }
             let transcript = Some(format!("Heard: “{input}” — {}", result.message));
             match result.status {
                 NaturalCommandStatus::Ready => {
@@ -1837,14 +1898,17 @@ pub fn process_voice_command(app: AppHandle, input: String) {
                         _ => "processing",
                     };
                     if state == "success"
-                        && audio::begin_followup_capture(&app.state::<audio::AudioService>())
+                        && audio::begin_followup_capture(
+                            &app.state::<audio::AudioService>(),
+                            Some(speech_generation),
+                        )
                             .is_ok()
                     {
                         let followup = transcript
                             .as_deref()
                             .map(|message| format!("{message} Listening for another command..."));
                         crate::assistant::update_voice_state(&app, "listening", followup, None);
-                    } else {
+                    } else if app.state::<crate::tts::TtsService>().current(speech_generation) {
                         crate::assistant::update_voice_state(&app, state, transcript, None);
                     }
                 }
@@ -1856,14 +1920,17 @@ pub fn process_voice_command(app: AppHandle, input: String) {
                         .and_then(Value::as_str)
                         == Some("tool_sequence");
                     if !is_sequence
-                        && audio::begin_followup_capture(&app.state::<audio::AudioService>())
+                        && audio::begin_followup_capture(
+                            &app.state::<audio::AudioService>(),
+                            Some(speech_generation),
+                        )
                             .is_ok()
                     {
                         let followup = transcript
                             .as_deref()
                             .map(|message| format!("{message} Listening for your answer..."));
                         crate::assistant::update_voice_state(&app, "listening", followup, None);
-                    } else {
+                    } else if app.state::<crate::tts::TtsService>().current(speech_generation) {
                         crate::assistant::update_voice_state(&app, "processing", transcript, None);
                     }
                 }
@@ -1886,6 +1953,38 @@ pub fn process_voice_command(app: AppHandle, input: String) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn trickling_model_response_cannot_extend_the_deadline() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap().to_string();
+        let server = std::thread::spawn(move || {
+            let (mut socket, _) = listener.accept().unwrap();
+            let mut request = [0; 1024];
+            let _ = socket.read(&mut request);
+            for _ in 0..100 {
+                if socket.write_all(b"x").is_err() { break; }
+                std::thread::sleep(Duration::from_millis(20));
+            }
+        });
+        let started = Instant::now();
+        assert!(http_request_at(&address, "GET", "/", None, Duration::from_millis(100)).is_err());
+        assert!(started.elapsed() < Duration::from_secs(1), "individual reads must not reset the total deadline");
+        server.join().unwrap();
+    }
+
+    #[test]
+    fn assistant_controls_accept_polite_and_bounded_speech_variants() {
+        for input in ["Close Nova", "Close the nova, please", "Can you close the nova", "Please close the nova", "cloze nova", "clothes no va", "hide assistant"] {
+            assert!(matches!(deterministic_request(input), DeterministicDecision::HideAssistant), "{input}");
+        }
+        for input in ["Turn off", "Turn off NOVA", "Please turn off the nova", "can you turn off", "turn of nova"] {
+            assert!(matches!(deterministic_request(input), DeterministicDecision::DisableNova), "{input}");
+        }
+        for input in ["nova", "don't close nova", "do not turn off nova", "close nova project", "turn off chrome", "close notepad", "never close nova"] {
+            assert!(!matches!(deterministic_request(input), DeterministicDecision::HideAssistant | DeterministicDecision::DisableNova), "{input}");
+        }
+    }
 
     #[test]
     fn paraphrased_commands_map_to_exact_typed_requests() {
@@ -2334,3 +2433,5 @@ mod tests {
         );
     }
 }
+
+pub fn clear_context() { if let Ok(mut context) = conversation_context().lock() { *context = ConversationContext::default(); } }

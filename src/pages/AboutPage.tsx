@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { PageHeading } from "../components/ui/PageHeading";
+import { getRuntimeInfo, type RuntimeInfo } from "../services/privacy";
 import { getWakeEngineStatus } from "../services/audio";
 import { getLocalModelInfo } from "../services/languageModel";
 import { getSpeechEngineInfo } from "../services/speech";
@@ -7,29 +8,20 @@ import type { LocalModelInfo } from "../types/languageModel";
 import type { SpeechEngineInfo } from "../types/speech";
 
 export function AboutPage({ version }: { version: string }) {
+  const [runtime,setRuntime] = useState<RuntimeInfo|null>(null);
+  const [error,setError] = useState("");
   const [speech, setSpeech] = useState<SpeechEngineInfo | null>(null);
   const [model, setModel] = useState<LocalModelInfo | null>(null);
-  const [wakeEngine, setWakeEngine] = useState("sherpa-onnx Zipformer KWS");
+  const [wakeEngine, setWakeEngine] = useState("Detecting...");
 
   useEffect(() => {
-    void getSpeechEngineInfo()
-      .then(setSpeech)
-      .catch((error: unknown) =>
-        console.error(
-          "[NOVA] Could not read speech-engine information.",
-          error,
-        ),
-      );
-    void getWakeEngineStatus()
-      .then((status) => setWakeEngine(status.engine))
-      .catch((error: unknown) =>
-        console.error("[NOVA] Could not read wake-engine information.", error),
-      );
-    void getLocalModelInfo()
-      .then(setModel)
-      .catch((error: unknown) =>
-        console.error("[NOVA] Could not read local-model information.", error),
-      );
+    let active = true;
+    const failed = (value: unknown) => { if (active) setError(String(value)); };
+    void getRuntimeInfo().then(value => { if (active) setRuntime(value); }).catch(failed);
+    void getSpeechEngineInfo().then(value => { if (active) setSpeech(value); }).catch(failed);
+    void getWakeEngineStatus().then(value => { if (active) setWakeEngine(value.engine); }).catch(value => { if (active) setWakeEngine("Unavailable"); failed(value); });
+    void getLocalModelInfo().then(value => { if (active) setModel(value); }).catch(failed);
+    return () => { active = false; };
   }, []);
 
   const modelClass =
@@ -56,10 +48,11 @@ export function AboutPage({ version }: { version: string }) {
         aria-labelledby="technical-heading"
       >
         <h2 id="technical-heading">Technical information</h2>
+        {error && <p role="alert" className="microphone-error">{error}</p>}
         <dl className="metadata">
           <div>
             <dt>Version</dt>
-            <dd className="mint">{version}</dd>
+            <dd className="mint">{runtime?.version ?? version}</dd>
           </div>
           <div>
             <dt>Local model</dt>
@@ -83,6 +76,8 @@ export function AboutPage({ version }: { version: string }) {
             <dt>Wake-word engine</dt>
             <dd className="mint">{wakeEngine}</dd>
           </div>
+          <div><dt>Platform</dt><dd>{runtime ? `${runtime.platform} / ${runtime.architecture}` : 'Detecting...'}</dd></div>
+          <div><dt>Voice reply engine</dt><dd>{runtime?.tts ?? 'Detecting...'}</dd></div>
         </dl>
         {model && (
           <p className="supporting-note">

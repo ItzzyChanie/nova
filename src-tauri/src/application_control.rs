@@ -1008,3 +1008,21 @@ mod tests {
         }
     }
 }
+
+
+pub fn open_project_editor(editor: &str, path: &std::path::Path) -> Result<(), String> {
+    if !matches!(editor, "Visual Studio Code" | "Cursor" | "Visual Studio 2026" | "Android Studio") {
+        return Err("Choose a supported project editor.".into());
+    }
+    let application = resolve_known_application(editor).map_err(|e| e.message)?;
+    let executable = discover_executable(application).map_err(|e| e.message)?;
+    let mut command = std::process::Command::new(executable);
+    command.arg(path);
+    #[cfg(windows)] {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(0x08000000);
+    }
+    let mut child = command.spawn().map_err(|e| format!("Could not open the project editor: {e}"))?;
+    std::thread::spawn(move || { let _ = child.wait(); });
+    Ok(())
+}

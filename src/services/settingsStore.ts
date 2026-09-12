@@ -9,6 +9,7 @@ import {
 export const DEFAULT_NOVA_ENABLED = true;
 
 export interface StartupSettings {
+  voiceReply: boolean;
   novaEnabled: boolean;
   autostartEnabled: boolean;
   skillPreferences: SkillPreferences;
@@ -17,6 +18,7 @@ export interface StartupSettings {
 }
 
 export const DEFAULT_STARTUP_SETTINGS: StartupSettings = {
+  voiceReply: false,
   novaEnabled: DEFAULT_NOVA_ENABLED,
   autostartEnabled: DEFAULT_NOVA_ENABLED,
   skillPreferences: { ...DEFAULT_SKILL_PREFERENCES },
@@ -34,6 +36,7 @@ export async function saveNovaEnabled(
 ): Promise<StartupSettings> {
   if (!isTauri()) {
     return {
+      voiceReply: false,
       novaEnabled: enabled,
       autostartEnabled: enabled,
       skillPreferences: { ...DEFAULT_SKILL_PREFERENCES },
@@ -72,4 +75,9 @@ export async function saveAssistantPaused(
 ): Promise<VoiceSettings> {
   if (!isTauri()) return { wakeSensitivity: "Medium", assistantPaused: paused };
   return invoke<VoiceSettings>("set_assistant_paused", { paused });
+}
+
+export async function saveVoiceReply(enabled: boolean): Promise<boolean> {
+  if (!isTauri()) throw new Error("Voice reply requires the NOVA desktop app.");
+  return invoke<boolean>("set_voice_reply", { enabled });
 }
