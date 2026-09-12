@@ -266,4 +266,22 @@ Read [the release audit](docs/PHASE17_RELEASE_AUDIT.md) and execute [the install
 
 ## Screenshots
 
-Placeholder: add reviewed screenshots of the dashboard, floating assistant, Projects, Workflows, and Privacy & data before public distribution. Local automated captures are written to `.tmp/phase16-projects.png`.
+### Dashboard
+
+![NOVA dashboard](docs/screenshots/Dashboard.png)
+
+### Command Logs
+
+![NOVA floating assistant](docs/screenshots/commands.png)
+
+### Skills
+
+![NOVA Projects page](docs/screenshots/skills.png)
+
+### Voice & Wakeword
+
+![NOVA Workflows page](docs/screenshots/voice-wakeword.png)
+
+### Floating Assistant
+
+![NOVA Privacy & data page](docs/screenshots/floating-assistant.png)
