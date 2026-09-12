@@ -64,30 +64,125 @@ The frontend cannot run a shell or access the filesystem through a broad plugin.
 
 ## Requirements
 
-- Windows desktop with an x64 MSVC Rust toolchain and Visual Studio C++ build tools/Windows SDK.
-- Node.js compatible with the pinned Vite toolchain (development machine: Node 22.15.0) and npm.
-- WebView2 runtime, an available microphone for voice input, and an output device for voice replies.
-- Microsoft David or Zira desktop voice for current SAPI support; otherwise NOVA keeps text responses.
-- Bundled wake/VAD/Whisper resources in `src-tauri/resources`.
-- Optional Ollama and the `qwen3:1.7b` model for commands needing model interpretation.
-- For project commands: a conventional Node.js installation containing npm, or the .NET SDK. A supported editor must be installed.
+NOVA is currently a **Windows-only desktop application**. Install the required tools before cloning or building:
 
-## Development setup
+### Required for development
+
+- Windows 10 or 11, x64.
+- [Git for Windows](https://git-scm.com/download/win).
+- [Node.js 22 LTS](https://nodejs.org/en/download) with npm. The development environment used for this release is Node 22.15.0; use `node --version` and `npm --version` to verify it.
+- [Rust with rustup](https://rustup.rs/), using the stable `x86_64-pc-windows-msvc` toolchain. The Tauri build requires the MSVC target, not the GNU target.
+- [Microsoft C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with **Desktop development with C++**, MSVC x64/x86 build tools, and a Windows 10/11 SDK selected.
+- [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/) Evergreen Runtime. The installer can bootstrap WebView2 on a connected machine, but installing it first avoids first-run failures.
+- A working internet connection for the first `npm ci` and Cargo dependency download. Normal local inference does not require a cloud AI account.
+
+### Required for voice features
+
+- An available microphone. Windows microphone privacy permission must allow NOVA/Desktop apps to use it.
+- An output device for audio replies.
+- Microsoft **David** or **Zira** desktop SAPI voice. Without one, text commands still work and NOVA displays text replies instead of speaking them.
+- No separate speech-model download is needed for the normal checkout. Wake-word, VAD, and Whisper Tiny English INT8 files are bundled under `src-tauri/resources` and packaged by Tauri.
+
+### Optional features
+
+- [Ollama for Windows](https://ollama.com/download/windows) and the `qwen3:1.7b` model enable local natural-language classification for commands that are not handled by NOVA's deterministic parser. Ollama is not required for the dashboard or common deterministic commands.
+- [Visual Studio Code](https://code.visualstudio.com/Download), [Cursor](https://www.cursor.com/downloads), [Visual Studio](https://visualstudio.microsoft.com/downloads/), or [Android Studio](https://developer.android.com/studio) for opening saved projects. NOVA only recognizes these supported editors.
+- [.NET SDK](https://dotnet.microsoft.com/download/dotnet) is needed only for saved projects that use `dotnet run`.
+
+If a prerequisite or optional tool is already installed on your device, skip its installer link and continue with the version check or setup step. Do not reinstall it unless the required version or component is missing.
+
+Check the core toolchain from a new PowerShell window after installation:
 
 ```powershell
-npm ci
-npm run tauri dev
+git --version
+node --version
+npm --version
+rustc --version
+cargo --version
+rustup show active-toolchain
 ```
 
-For UI-only work, `npm run dev` starts Vite. A browser preview cannot exercise native IPC or desktop tools; those pages report unavailable backend operations.
+## Clone and run from source
 
-Provision optional language inference separately:
+1.  Open PowerShell and clone the repository:
+
+        ```powershell
+        git clone <repository-url> nova
+        cd nova
+        ```
+
+        Replace `<repository-url>` with the repository's HTTPS or SSH URL.
+
+2.  Confirm that the bundled resources exist. These directories should be present in a normal clone:
+
+        ```text
+        src-tauri/resources/wake-word
+        src-tauri/resources/speech/sherpa-onnx-whisper-tiny.en
+        src-tauri/resources/vad
+        ```
+
+        Do not delete or selectively omit these directories; the desktop voice engine depends on them.
+
+3.  Install the exact locked frontend dependencies:
+
+        ```powershell
+        npm ci
+        ```
+
+4.  Start NOVA as a Tauri desktop application:
+
+        ```powershell
+        npm run tauri dev
+        ```
+
+        The first Rust build can take several minutes while Cargo downloads and compiles native dependencies. Keep the terminal open while using the development app.
+
+For UI-only work, use `npm run dev`. This opens a browser preview, but browser mode cannot exercise native IPC, microphone capture, wake detection, Windows tools, tray behavior, or project process control.
+
+## Install and configure Ollama
+
+Ollama is optional. Install it only if you want model-assisted natural-language routing.
+
+1.  If Ollama is not installed, install [Ollama for Windows](https://ollama.com/download/windows). If it is already installed, skip the installer and continue.
+2.  Start Ollama from the Start menu, or launch `ollama serve` in PowerShell if the service is not already running.
+3.  Open a new PowerShell window and download the exact model NOVA expects:
+
+        ```powershell
+        ollama pull qwen3:1.7b
+        ```
+
+        This downloads approximately 1.4 GB and needs approximately 2.5-3.5 GB of available RAM while running. Do not pull a different tag and expect NOVA to treat it as the configured model.
+
+4.  Verify that the model is installed and Ollama is responding:
+
+        ```powershell
+        ollama list
+        Invoke-RestMethod http://127.0.0.1:11434/api/tags
+        ```
+
+        The list should contain `qwen3:1.7b`. NOVA uses only `127.0.0.1:11434`; it rejects remote Ollama endpoints by design.
+
+5.  Restart NOVA after installing Ollama, then open **About** and run diagnostics. The model may show **Installed; loads on demand** until the first model-assisted request, then **Loaded**.
+
+If Ollama is missing, stopped, or the model has not been pulled, NOVA does not download it automatically and does not crash. Deterministic commands and the rest of the dashboard remain available. To test the service independently, run:
 
 ```powershell
-ollama pull qwen3:1.7b
+ollama run qwen3:1.7b
 ```
 
-Ollama must be serving on `127.0.0.1:11434`. The native client rejects non-loopback endpoints. Common deterministic commands remain usable if Ollama is unavailable.
+Press `Ctrl+C` to exit that test. Keep the Ollama application/service running when NOVA needs model-assisted routing.
+
+## First-run configuration
+
+After NOVA opens:
+
+1. Open **About** and run diagnostics. Resolve any missing WebView2, microphone, bundled-resource, or Ollama messages that apply to the features you want.
+2. Open **Voice** and select the intended microphone. Test the microphone before relying on `Hey NOVA` or `NOVA` wake detection.
+3. Enable or disable **Voice reply**. Text responses remain available if SAPI playback is unavailable.
+4. Review **Skills** and **Privacy & data**. NOVA starts enabled by default, but project/workflow voice execution is disabled until explicitly approved.
+5. Use **Projects > New project** only for an existing project folder and an editor already installed on Windows.
+
+NOVA stores settings, projects, workflows and history in its local application-data directory. It does not download bundled speech models at first run, save microphone audio, or send core inference to a cloud service.
 
 ## Configure a project
 
