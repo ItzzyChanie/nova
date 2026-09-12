@@ -1,5 +1,6 @@
 import { navigationItems, type NovaPage } from "../../types/navigation";
 import type { NovaStatus } from "../../types/nova";
+import novaLogo from "../../assets/Nova-logo.png";
 
 import { Icon } from "../ui/Icon";
 
@@ -13,7 +14,7 @@ export function Sidebar({ status, page, onNavigate }: SidebarProps) {
   return (
     <aside className="sidebar" aria-label="NOVA workspace">
       <div className="brand">
-        <span className="brand-mark" aria-hidden="true">N</span>
+        <img className="brand-mark" src={novaLogo} alt="" />
         <span>NOVA</span>
       </div>
       <nav aria-label="Main navigation">
@@ -25,7 +26,9 @@ export function Sidebar({ status, page, onNavigate }: SidebarProps) {
             aria-current={page === item.id ? "page" : undefined}
             onClick={() => onNavigate(item.id)}
           >
-            <span className="nav-icon"><Icon name={item.id} /></span>
+            <span className="nav-icon">
+              <Icon name={item.id} />
+            </span>
             {item.label}
           </button>
         ))}

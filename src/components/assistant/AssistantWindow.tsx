@@ -9,6 +9,7 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { hideAssistant } from "../../services/assistantWindow";
 import type { AssistantState } from "../../types/assistant";
+import novaLogo from "../../assets/Nova-logo.png";
 import { Icon } from "../ui/Icon";
 import "../../styles/assistant.css";
 
@@ -218,7 +219,7 @@ export default function AssistantWindow() {
     >
       <header className="overlay-header">
         <div className="overlay-brand">
-          <span aria-hidden="true">N</span> NOVA
+          <img src={novaLogo} alt="" /> NOVA
         </div>
         <span className="overlay-status" role="status">
           <span aria-hidden="true" />

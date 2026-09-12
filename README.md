@@ -1,3 +1,7 @@
+<p align="center">
+        <img src="src/assets/Nova-logo.png" alt="NOVA logo" width="180">
+</p>
+
 # NOVA 1.0.1 - local Windows development assistant
 
 NOVA is a compact desktop assistant with a dark navy interface, orange actions, mint status indicators and monospace technical details. It combines local wake-word detection, speech recognition, optional voice replies, and permission-checked desktop tools. Development projects and reusable workflows are configured by the user, not generated and executed by an AI model.

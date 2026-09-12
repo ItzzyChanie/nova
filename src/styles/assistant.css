@@ -74,19 +74,12 @@ body {
   font-weight: 700;
   letter-spacing: 0.12em;
 }
-.overlay-brand > span {
-  display: grid;
-  place-items: center;
+.overlay-brand > img {
+  display: block;
   width: 22px;
   height: 22px;
   border-radius: 7px;
-  background: linear-gradient(
-    135deg,
-    var(--accent-orange),
-    var(--accent-orange-soft)
-  );
-  color: var(--text-primary);
-  font: 700 11px var(--font-mono);
+  object-fit: cover;
 }
 .overlay-status {
   display: flex;
@@ -282,5 +275,7 @@ body {
   animation: voice-ring 3s linear infinite;
 }
 @media (prefers-reduced-motion: reduce) {
-  .assistant-panel .voice-orb::before { animation: none; }
+  .assistant-panel .voice-orb::before {
+    animation: none;
+  }
 }
